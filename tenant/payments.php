@@ -1,0 +1,121 @@
+<?php
+require_once __DIR__ . '/../includes/functions.php';
+requireTenant();
+
+$tenantId = (int)$_SESSION['user_id'];
+$initial = strtoupper(substr($_SESSION['full_name'] ?? 'T', 0, 1));
+
+$searchLabel = sanitize($_GET['search'] ?? '');
+$filterMonth = sanitize($_GET['month'] ?? '');
+
+$query = "
+  SELECT p.*, s.stall_number
+  FROM payments p
+  JOIN contracts c ON c.id = p.contract_id
+  JOIN stalls s ON s.id = c.stall_id
+  WHERE p.tenant_id = ?
+";
+
+if ($searchLabel) {
+    $query .= " AND p.receipt_number LIKE '%$searchLabel%'";
+}
+if ($filterMonth) {
+    $query .= " AND p.payment_for_month = '$filterMonth'";
+}
+
+$query .= " ORDER BY p.payment_date DESC, p.id DESC";
+
+$stmt = $conn->prepare($query);
+$stmt->bind_param("i", $tenantId);
+$stmt->execute();
+$payments = $stmt->get_result();
+
+$unread = notifUnreadCount($tenantId);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Payments - Tenant</title>
+  <link rel="stylesheet" href="../assets/css/style.css"/>
+</head>
+<body>
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">🏪</span>
+      <h2>A&J Alfresco</h2>
+      <p>Tenant Panel</p>
+    </div>
+    <ul class="sidebar-menu">
+      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
+      <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
+      <li><a class="active" href="payments.php"><span class="icon">💰</span> My Payments</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
+      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+    </ul>
+  </aside>
+
+  <main class="main-content">
+    <div class="top-bar">
+      <h1>Payment History</h1>
+      <div class="user-info">
+        <div class="avatar"><?php echo $initial; ?></div>
+        <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <div class="card-header">
+          <h2>Filter Records</h2>
+          <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input type="text" name="search" placeholder="Search Receipt #..." value="<?php echo htmlspecialchars($searchLabel); ?>" style="padding: 6px 12px; border:1px solid #ddd; border-radius:8px;">
+            <input type="month" name="month" value="<?php echo htmlspecialchars($filterMonth); ?>" style="padding: 6px 12px; border:1px solid #ddd; border-radius:8px;">
+            <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
+          </form>
+        </div>
+        <div class="card-body table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Receipt #</th>
+                <th>Month Covered</th>
+                <th>Amount</th>
+                <th>Payment Date</th>
+                <th>Method</th>
+                <th style="width:160px;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php while($p = $payments->fetch_assoc()): ?>
+                <tr>
+                  <td><strong>#<?php echo htmlspecialchars($p['receipt_number']); ?></strong></td>
+                  <td><?php echo date('F Y', strtotime($p['payment_for_month'] . '-01')); ?></td>
+                  <td><?php echo formatMoney($p['amount']); ?></td>
+                  <td><?php echo formatDate($p['payment_date']); ?></td>
+                  <td>
+                    <span class="status-badge paid"><?php echo strtoupper($p['payment_method']); ?></span>
+                  </td>
+                  <td>
+                    <a class="btn btn-success btn-sm" target="_blank" href="receipt.php?id=<?php echo (int)$p['id']; ?>">
+                      View Receipt
+                    </a>
+                  </td>
+                </tr>
+              <?php endwhile; ?>
+
+              <?php if ($payments->num_rows === 0): ?>
+                <tr><td colspan="6">No payments match your search.</td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

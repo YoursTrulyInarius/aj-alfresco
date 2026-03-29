@@ -1,0 +1,25 @@
+# PHP/XAMPP
+php_errors.log
+composer.lock
+.htaccess
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+__pycache__/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# DB check scripts (Cleanup)
+check_db.php
+check_schema.php
+check_users.php
+fix_db.php
+fix_dashboard.php
+migrate_db.php
+fix_db_terms.php

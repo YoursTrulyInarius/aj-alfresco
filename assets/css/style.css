@@ -1,0 +1,340 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root{
+  --bg:#ffffff;
+  --card:#fdfdfd; 
+  --text:#333333;
+  --muted:#888888;
+  --line:rgba(255,182,193,0.3);
+  --grad:linear-gradient(135deg, #ffc0cb 0%, #ffb6c1 100%); /* Light Pink */
+  --grad-soft:linear-gradient(135deg, rgba(255,192,203,0.2), rgba(255,182,193,0.1));
+  --accent:#d63384; /* Medium-Dark Vibrant Pink */
+  --accent-light:#ff66b2; /* Lighter Pink for hover "light up" */
+  --shadow:0 10px 40px rgba(0,0,0,0.08);
+  --shadow2:0 5px 20px rgba(214,51,132,0.2);
+  --radius:16px;
+  --radius-sm:10px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Poppins",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{text-decoration:none;color:inherit}
+small{color:var(--muted)}
+.container{max-width:1200px;margin:0 auto}
+
+/* Login */
+.login-page{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:#ffffff;padding:24px
+}
+.login-box{
+  width:100%;max-width:450px;border-radius:24px;
+  background:#fcfcfc;
+  box-shadow:var(--shadow);
+  padding:40px;text-align:center;
+  border:1px solid #f0f0f0;
+}
+.login-box .logo{font-size:50px;margin-bottom:15px}
+.login-box h1{font-size:26px;font-weight:700;color:#333;margin-bottom:5px}
+
+/* Forms */
+.form-group{margin-bottom:20px;text-align:left}
+.form-group label{display:block;margin-bottom:8px;font-weight:600;font-size:14px;color:#555}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;padding:12px 15px;border-radius:var(--radius-sm);
+  border:1.5px solid #eee;background:#fff;
+  font-size:14px;outline:none;transition:.2s ease;font-family:"Poppins"
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(255,182,193,0.2)
+}
+
+/* Buttons */
+.btn{
+  border:0;border-radius:var(--radius-sm);
+  padding:10px 20px;font-weight:600;font-size:14px;
+  cursor:pointer;transition:.3s ease;display:inline-block;text-align:center;
+  font-family:"Poppins";user-select:none
+}
+.btn-primary{
+  width:100%;padding:14px;color:#fff;
+  background:var(--accent);
+  box-shadow:0 8px 20px rgba(214,51,132,0.25)
+}
+.btn-primary:hover{background:var(--accent-light);transform:translateY(-1px);box-shadow:0 8px 25px rgba(214,51,132,0.35)}
+.btn-success{color:#fff;background:#2e7d32}
+.btn-success:hover{background:#4caf50}
+.btn-danger{color:#fff;background:#d84315}
+.btn-danger:hover{background:#ff7043}
+.btn-warning{color:#fff;background:#f9a825}
+.btn-warning:hover{background:#fdd835}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+/* Layout & Sidebar Toggle */
+.dashboard{display:flex;min-height:100vh;overflow-x:hidden}
+.main-content{flex:1;background:#f8f9fa;min-height:100vh;transition:.3s ease;width:100%}
+
+/* Hamburger Menu Toggle */
+.menu-toggle{
+  display:none;
+  font-size:24px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  color:#333;
+  margin-right:15px;
+}
+
+@media (max-width: 900px){
+  .menu-toggle{display:block}
+  .sidebar{
+    transform:translateX(-100%);
+    position:fixed;
+    height:100vh;
+    z-index:2000; /* Sidebar must be higher than overlay (1001) */
+  }
+  .sidebar.show{transform:translateX(0)}
+  .main-content{margin-left:0}
+  
+  .sidebar-overlay{
+    background:rgba(0,0,0,0.3);z-index:1000; /* Overlay must be lower */
+  }
+}
+.sidebar-overlay, .modal-overlay{
+  display:none;position:fixed;inset:0;z-index:1001;
+  pointer-events:none;
+}
+.sidebar-overlay.show, .modal-overlay.show{
+  display:flex;pointer-events:auto;
+}
+
+/* Sidebar Styling Refinement */
+.sidebar{
+  width:260px;background:#fdfdfd;border-right:1px solid #f0f0f0;
+  color:#333;transition:.3s ease;flex-shrink:0;
+  position: relative;
+  z-index: 1005; /* Desktop sidebar safety */
+}
+.sidebar-header{padding:30px 20px;text-align:center;border-bottom:1px solid #f9f9f9}
+.sidebar-header h2{font-size:18px;font-weight:700;color:var(--accent)}
+.sidebar-menu{list-style:none}
+.sidebar-menu li a{
+  display:flex;align-items:center;gap:12px;padding:15px 25px;
+  color:#666;font-weight:500;font-size:14px;transition:.2s;
+}
+.sidebar-menu li a:hover,.sidebar-menu li a.active{
+  background:rgba(255,192,203,0.1);color:var(--accent);font-weight:700;
+}
+
+/* Header & Top Bar */
+.top-bar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(255,255,255,0.95);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid #f0f0f0;
+  padding:15px 30px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.header-left{display:flex;align-items:center}
+.top-bar h1{font-size:18px;font-weight:700;color:#333;margin:0}
+.user-info{display:flex;align-items:center;gap:10px}
+.avatar{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:14px;overflow:hidden;
+}
+
+/* Hide 'A' if requested? User wants it gone. 
+   I'll make the avatar smaller or empty if they hate the letter. 
+   Actually I'll just keep the circle without the letter if that's what they meant. */
+
+.content{padding:30px;width:100%}
+
+/* Responsive Table */
+.table-responsive{overflow-x:auto;margin-bottom:20px;border-radius:12px;border:1px solid #eee}
+table{width:100%;border-collapse:collapse;min-width:700px}
+
+/* Mobile Adjustments */
+@media (max-width: 600px){
+  .content{padding:15px}
+  .stats-grid{grid-template-columns:1fr}
+  .top-bar{padding:15px}
+}
+
+/* Stat cards */
+.stats-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:18px;margin-bottom:26px
+}
+.stat-card{
+  background:#fff;border-radius:var(--radius);
+  padding:25px;box-shadow:var(--shadow);
+  border:1px solid #f9f9f9;
+  display:flex;align-items:center;gap:16px;transition:.3s
+}
+.stat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow2)}
+.stat-icon{
+  width:60px;height:60px;border-radius:15px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--grad-soft);font-size:24px;color:var(--accent)
+}
+.stat-info h3{font-size:28px;font-weight:700;color:#333}
+.stat-info p{font-size:13px;color:var(--muted);font-weight:500}
+
+/* Cards */
+.card{
+  background:#fff;border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  border:1px solid #f0f0f0;
+  overflow:hidden;margin-bottom:25px
+}
+.card-header{
+  padding:15px 22px;
+  background:#fafafa;
+  border-bottom:1px solid #f0f0f0;
+  display:flex;align-items:center;justify-content:space-between
+}
+.card-header h2{font-size:16px;font-weight:700;color:#333}
+.card-body{padding:25px}
+
+/* Tables */
+table{width:100%;border-collapse:collapse}
+thead th{
+  text-align:left;padding:12px 16px;font-size:12px;
+  text-transform:uppercase;letter-spacing:1px;
+  color:var(--accent);background:#fff9fa;
+  border-bottom:2px solid var(--line)
+}
+tbody td{
+  padding:12px 16px;border-bottom:1px solid #f5f5f5;
+  font-size:13px;color:#444;font-weight:500
+}
+tbody tr:hover{background:#fffbfc}
+
+/* Badges */
+.status-badge{
+  display:inline-block;padding:5px 12px;border-radius:8px;
+  font-size:11px;font-weight:700;
+}
+.status-badge.active,.status-badge.paid,.status-badge.available{
+  background:rgba(167,208,140,0.15);color:#5d8a43;
+}
+.status-badge.pending,.status-badge.occupied{
+  background:rgba(255,215,0,0.15);color:#b8860b;
+}
+.status-badge.expired,.status-badge.overdue,.status-badge.maintenance,.status-badge.terminated{
+  background:rgba(255,182,193,0.15);color:#d63384;
+}
+
+/* Modal */
+.modal-overlay{
+  background:rgba(18,2,8,.55);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;padding:18px
+}
+.modal{
+  width:100%;max-width:520px;border-radius:26px;background:#fff;
+  box-shadow:0 28px 80px rgba(0,0,0,.35);
+  border:1px solid rgba(255,45,85,.10);
+  padding:26px
+}
+.modal h2{font-size:20px;font-weight:900;color:#2a1a22;margin-bottom:12px}
+.modal-buttons{display:flex;gap:10px;margin-top:14px}
+.modal-buttons .btn{flex:1}
+
+/* Receipt */
+.receipt{
+  max-width:420px;margin:24px auto;background:#fff;
+  border:2px dashed rgba(255,45,85,.35);
+  border-radius:18px;padding:26px;
+  box-shadow:0 14px 40px rgba(255,45,85,.10)
+}
+.receipt-header{text-align:center;padding-bottom:14px;margin-bottom:14px;border-bottom:2px dashed rgba(255,45,85,.25)}
+.receipt-header h2{font-size:20px;font-weight:900;color:#ff2d55}
+.receipt-header p{font-size:12px;color:var(--muted);font-weight:600}
+.receipt-row{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;font-size:13px;font-weight:700;color:#4a2a36}
+.receipt-row.total{margin-top:12px;padding-top:12px;border-top:2px dashed rgba(255,45,85,.25);font-size:15px;font-weight:900;color:#2a1a22}
+.receipt-footer{text-align:center;margin-top:14px;padding-top:14px;border-top:2px dashed rgba(255,45,85,.25);font-size:12px;color:var(--muted);font-weight:700}
+
+/* Print */
+@media print{
+  body *{visibility:hidden}
+  .receipt,.receipt *{visibility:visible}
+  .receipt{position:absolute;left:0;top:0;margin:0;border:none;box-shadow:none}
+}
+/* === EXTRA: contract status aliases === */
+.status-badge.pending_renewal{
+  background:#fff7ed;
+  color:#9a3412;
+  border:1px solid rgba(154,52,18,.18);
+}
+.status-badge.terminated{
+  background:#fff1f2;
+  color:#be123c;
+  border:1px solid rgba(190,18,60,.18);
+}
+.status-badge.expired{
+  background:#fff1f2;
+  color:#be123c;
+  border:1px solid rgba(190,18,60,.18);
+}
+
+/* === Toast pop-ups (top-right reminders) === */
+.toast-wrap{
+  position:fixed;
+  top:18px;
+  right:18px;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:min(360px, calc(100vw - 36px));
+  pointer-events:none; /* Allow click through */
+}
+.toast{
+  pointer-events:auto; /* But capture on actual toast */
+  position:relative;
+  background:#fff;
+  border-radius:16px;
+  padding:14px 14px 14px 14px;
+  box-shadow:0 18px 50px rgba(0,0,0,.18);
+  border:1px solid rgba(255,45,85,.18);
+  border-left:6px solid #ff2d55;
+  overflow:hidden;
+  animation:toastIn .18s ease-out;
+}
+.toast.hide{opacity:0;transform:translateX(8px);transition:.25s ease}
+.toast-title{font-weight:900;color:#2a1a22;font-size:14px;margin-bottom:4px}
+.toast-msg{font-weight:600;color:#6b5a63;font-size:13px;line-height:1.35}
+.toast-close{
+  position:absolute;top:8px;right:10px;
+  border:0;background:transparent;cursor:pointer;
+  font-size:18px;font-weight:900;color:#6b5a63;
+}
+@keyframes toastIn{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+/* Show/Hide password toggle */
+.password-wrap{
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrap input{
+  padding-right: 90px; /* space for button */
+}
+.pw-toggle{
+  position: absolute;
+  right: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,45,85,.25);
+  background: rgba(255,255,255,.75);
+  font-weight: 800;
+  cursor: pointer;
+  color: #4a2a36;
+}
+.pw-toggle:hover{ background: #fff; }
