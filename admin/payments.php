@@ -33,6 +33,9 @@ if ($tenant_id > 0) $where[] = "p.tenant_id = $tenant_id";
 if ($where) $query .= " WHERE " . implode(" AND ", $where);
 $query .= " ORDER BY p.id DESC";
 $payments = $conn->query($query);
+
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -40,18 +43,16 @@ $payments = $conn->query($query);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Payments - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    .select2-container--default .select2-selection--single {
-      height: 42px;
-      padding: 6px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-    }
+    .select2-container--default .select2-selection--single { height: 42px; padding: 6px; border: 1px solid #ddd; border-radius: 8px; }
     .select2-container { width: 100% !important; }
+    #paymentFormContainer { display: none; margin-bottom: 25px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -68,6 +69,7 @@ $payments = $conn->query($query);
       <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
       <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
       <li><a class="active" href="payments.php"><span class="icon">💰</span> Payments</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
       <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>
@@ -88,27 +90,29 @@ $payments = $conn->query($query);
 
     <div class="content">
 
-      <?php if ($flash): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($flash); ?></div>
-      <?php endif; ?>
+      <div class="page-header">
+        <h2 style="margin:0;">Payment Records</h2>
+        <button class="btn btn-primary" onclick="togglePaymentForm()" style="width:auto;">+ Record New Payment</button>
+      </div>
 
-      <div class="card">
-        <div class="card-header">
+      <!-- TOGGLEABLE FORM -->
+      <div id="paymentFormContainer" class="card">
+        <div class="card-header" style="background: #fdf2f7;">
           <h2>Record New Payment</h2>
+          <button class="btn btn-secondary btn-sm" onclick="togglePaymentForm()" style="width:auto; padding: 4px 10px;">Cancel</button>
         </div>
         <div class="card-body">
-          <form method="POST" action="process_payments.php">
+          <form method="POST" action="process_payments.php" onsubmit="return validatePaymentForm()">
             <input type="hidden" name="action" value="create">
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
               <div class="form-group">
                 <label>Select Tenant / Stall *</label>
                 <select name="contract_id" required id="contractSelect" onchange="updatePaymentInfo()">
                   <option value="">-- Choose Contract --</option>
                   <?php while($c = $contracts->fetch_assoc()): ?>
                     <option value="<?php echo (int)$c['contract_id']; ?>" 
-                            data-rent="<?php echo $c['monthly_rent']; ?>"
-                            <?php echo ($tenant_id == (int)$c['contract_id']) ? 'selected' : ''; ?>>
+                            data-rent="<?php echo $c['monthly_rent']; ?>">
                       <?php echo htmlspecialchars($c['tenant_name'] . " (" . $c['business_name'] . ") - " . $c['stall_number']); ?>
                     </option>
                   <?php endwhile; ?>
@@ -132,7 +136,7 @@ $payments = $conn->query($query);
                   <option value="cash">Cash</option>
                   <option value="gcash">GCash</option>
                   <option value="bank_transfer">Bank Transfer</option>
-                  <option value="paymongo">PayMongo</option>
+                  <option value="paymongo">PayMongo (Test Mode)</option>
                 </select>
               </div>
 
@@ -147,16 +151,17 @@ $payments = $conn->query($query);
               </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" style="margin-top:15px;">
               <label>Internal Notes</label>
               <textarea name="notes" rows="2" placeholder="Optional notes..."></textarea>
             </div>
 
-            <button class="btn btn-primary" type="submit">Process Payment & Generate Receipt</button>
+            <button class="btn btn-primary" type="submit" style="margin-top:10px;">Process Payment & Generate Receipt</button>
           </form>
         </div>
       </div>
 
+      <!-- PAYMENT HISTORY -->
       <div class="card">
         <div class="card-header">
           <h2>Payment History</h2>
@@ -175,7 +180,8 @@ $payments = $conn->query($query);
                 <th>Covered</th>
                 <th>Amount</th>
                 <th>Method</th>
-                <th style="width:200px;">Action</th>
+                <th>Date & Time</th>
+                <th style="width:140px;">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -189,13 +195,21 @@ $payments = $conn->query($query);
                   <td><?php echo date('M Y', strtotime($p['payment_for_month'] . '-01')); ?></td>
                   <td><?php echo formatMoney($p['amount']); ?></td>
                   <td>
-                    <span class="status-badge paid"><?php echo strtoupper($p['payment_method']); ?></span><br>
+                    <span class="status-badge paid" style="<?php echo ($p['payment_method'] == 'paymongo') ? 'background:#e83e8c;' : ''; ?>">
+                      <?php echo strtoupper($p['payment_method']); ?>
+                    </span><br>
                     <small><?php echo htmlspecialchars($p['reference_number']); ?></small>
+                  </td>
+                  <td>
+                    <small>
+                      <?php echo date('M d, Y', strtotime($p['created_at'])); ?><br>
+                      <strong><?php echo date('h:i A', strtotime($p['created_at'])); ?></strong>
+                    </small>
                   </td>
                   <td>
                     <div style="display:flex; gap:5px;">
                       <a class="btn btn-success btn-sm" target="_blank" href="receipt.php?id=<?php echo (int)$p['id']; ?>">Print</a>
-                      <form method="POST" action="process_payments.php" onsubmit="return confirm('Delete this record?');">
+                      <form method="POST" action="process_payments.php" onsubmit="return confirmDelete(event, this)">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$p['id']; ?>">
                         <button class="btn btn-danger btn-sm" type="submit">Delete</button>
@@ -205,7 +219,7 @@ $payments = $conn->query($query);
                 </tr>
               <?php endwhile; ?>
               <?php if ($payments->num_rows === 0): ?>
-                <tr><td colspan="6">No matching records.</td></tr>
+                <tr><td colspan="7">No matching records.</td></tr>
               <?php endif; ?>
             </tbody>
           </table>
@@ -222,6 +236,37 @@ function toggleSidebar() {
   document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 
+function togglePaymentForm() {
+  const form = document.getElementById('paymentFormContainer');
+  $(form).slideToggle(300);
+}
+
+function confirmDelete(e, form) {
+  e.preventDefault();
+  Swal.fire({
+    title: 'Are you sure?',
+    text: "This removal cannot be undone!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, delete it!'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      form.submit();
+    }
+  });
+}
+
+function validatePaymentForm() {
+  const amount = parseFloat(document.getElementById('amountInput').value.replace(/,/g, ''));
+  if (amount <= 0) {
+    Swal.fire({ icon: 'error', title: 'Invalid Amount', text: 'Please enter a valid payment amount.' });
+    return false;
+  }
+  return true;
+}
+
 $(document).ready(function() {
   $('#contractSelect').select2({
     placeholder: "-- Search Tenant or Stall --",
@@ -230,7 +275,6 @@ $(document).ready(function() {
     updatePaymentInfo();
   });
 
-  // Money input formatting
   $('.money-input').on('blur', function() {
     formatMoneyInput(this);
   }).on('focus', function() {
@@ -260,9 +304,16 @@ function updatePaymentInfo() {
     formatMoneyInput(input);
   }
 }
+
+// --- SWEETALERT FLASH HANDLER ---
+<?php if ($flash): ?>
+  Swal.fire({
+    icon: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "error" : "success"; ?>',
+    title: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "Oops!" : "Perfect!"; ?>',
+    text: '<?php echo htmlspecialchars($flash); ?>',
+    confirmButtonColor: '#d63384'
+  });
+<?php endif; ?>
 </script>
-</body>
-</html>
-</div>
 </body>
 </html>

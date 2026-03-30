@@ -83,9 +83,9 @@ $unread = notifUnreadCount($tenantId);
     <ul class="sidebar-menu">
       <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
       <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> My Payments</a></li>
-      <li>
-        <a href="notifications.php"><span class="icon">🔔</span> Notifications
+      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
+      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications
           <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
         </a>
       </li>

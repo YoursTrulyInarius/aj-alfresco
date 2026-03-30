@@ -71,29 +71,37 @@ function tenantAutoReminders($tenantId) {
     global $conn;
 
     // Get active contract
-    $stmt = $conn->prepare("SELECT id, end_date FROM contracts WHERE tenant_id=? AND status='active' ORDER BY id DESC LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, start_date, end_date FROM contracts WHERE tenant_id=? AND status='active' ORDER BY id DESC LIMIT 1");
     $stmt->bind_param("i", $tenantId);
     $stmt->execute();
     $contract = $stmt->get_result()->fetch_assoc();
     if (!$contract) return;
 
-    // (A) Rent due reminder: due every 1st of month, remind within 5 days
-    $today = new DateTime();
-    $nextDue = new DateTime($today->format('Y-m') . '-01');
-    if ((int)$today->format('d') > 1) $nextDue->modify('+1 month');
+    // (A) Rent due reminder: based on the start date, find the NEXT due date
+    $today = new DateTime('today');
+    $nextDue = new DateTime($contract['start_date']);
+    
+    // Increment by 1 month until we hit the first future due date
+    while ($nextDue <= $today) {
+        $nextDue->modify('+1 month');
+    }
+    
     $daysToDue = (int)$today->diff($nextDue)->days;
 
-    if ($daysToDue > 0 && $daysToDue <= 5) {
-        // only create once per day
-        $chk = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND DATE(created_at)=CURDATE() LIMIT 1");
-        $chk->bind_param("i", $tenantId);
+    // Send notification exactly 7 days before due date (1 week)
+    if ($daysToDue > 0 && $daysToDue <= 7) {
+        // check if notification for this target already exists to avoid duplicates
+        $monthStr = $nextDue->format('F Y');
+        $chk = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
+        $likeMsg = "%$monthStr%";
+        $chk->bind_param("is", $tenantId, $likeMsg);
         $chk->execute();
 
         if ($chk->get_result()->num_rows === 0) {
             createNotification(
                 $tenantId,
-                "Rent Due Reminder",
-                "Your rent is due in $daysToDue day(s). (Due every 1st of the month)",
+                "Upcoming Rent Payment",
+                "Heads up! Your rent for $monthStr is due in $daysToDue day(s). (Due on ".date('M d', strtotime($nextDue->format('Y-m-d'))).")",
                 "due_date"
             );
         }

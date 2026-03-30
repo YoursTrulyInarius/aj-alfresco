@@ -27,6 +27,9 @@ $recent = $conn->query("
   ORDER BY p.id DESC
   LIMIT 20
 ");
+
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -34,7 +37,7 @@ $recent = $conn->query("
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Reports - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
 </head>
 <body>
 <div class="dashboard">
@@ -50,6 +53,7 @@ $recent = $conn->query("
       <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
       <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
       <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
       <li><a class="active" href="reports.php"><span class="icon">📈</span> Reports</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>

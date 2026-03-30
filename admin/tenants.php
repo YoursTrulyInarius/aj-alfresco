@@ -10,11 +10,18 @@ $search = sanitize($_GET['search'] ?? '');
 $editTenant = null;
 
 if ($editId > 0) {
-    $stmt = $conn->prepare("SELECT id, full_name, email, phone, status, address, business_name, business_type FROM users WHERE id=? AND role='tenant'");
+    $stmt = $conn->prepare("
+        SELECT u.*, 
+            (SELECT s.id FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as current_stall_id,
+            (SELECT s.stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as current_stall_no
+        FROM users u WHERE u.id=? AND u.role='tenant'
+    ");
     $stmt->bind_param("i", $editId);
     $stmt->execute();
     $editTenant = $stmt->get_result()->fetch_assoc();
 }
+
+$allStalls = $conn->query("SELECT id, stall_number, status FROM stalls ORDER BY stall_number");
 
 $query = "SELECT u.*, (SELECT stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as stall_no 
           FROM users u WHERE u.role='tenant'";
@@ -23,17 +30,73 @@ if ($search) {
 }
 $query .= " ORDER BY u.id DESC";
 $result = $conn->query($query);
+
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Tenants - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-content {
+      background: #fff;
+      padding: 30px;
+      border-radius: 24px;
+      width: 95%;
+      max-width: 900px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 1010;
+      scrollbar-width: thin;
+      scrollbar-color: #d63384 #f8f9fa;
+    }
+    .modal-content::-webkit-scrollbar {
+      width: 8px;
+    }
+    .modal-content::-webkit-scrollbar-track {
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    .modal-content::-webkit-scrollbar-thumb {
+      background-color: #d63384;
+      border-radius: 10px;
+    }
+    .close-modal {
+      font-size: 32px;
+      font-weight: bold;
+      color: #999;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 10px;
+      z-index: 1020;
+      position: relative;
+    }
+    .close-modal:hover { color: #d63384; transform: rotate(90deg); transition: all 0.3s; }
+    #tenantFormContainer { padding: 0 !important; border: none !important; box-shadow: none !important; margin: 0 !important; }
+    .modal-header { padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h2 { margin: 0; color: #333; font-size: 1.5rem; }
+  </style>
 </head>
 <body>
 <div class="dashboard">
+  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <span class="logo">🏪</span>
@@ -46,6 +109,7 @@ $result = $conn->query($query);
       <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
       <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
       <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
       <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>
@@ -56,25 +120,86 @@ $result = $conn->query($query);
     <div class="top-bar">
       <div class="header-left">
         <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-        <h1>Tenants</h1>
+        <h1>Manage Tenants</h1>
       </div>
-      <div class="user-info">
-        <div class="avatar"></div>
-        <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+      <div class="header-right" style="display:flex; align-items:center; gap:15px;">
+        <button class="btn btn-success" style="width:auto; padding: 10px 20px; font-weight:bold; border-radius:12px; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);" onclick="toggleForm()">➕ Add New Tenant</button>
+        <div class="user-info">
+          <div class="avatar"></div>
+          <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+        </div>
       </div>
     </div>
 
     <div class="content">
 
-      <?php if ($flash): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($flash); ?></div>
-      <?php endif; ?>
-
-      <div class="card">
+      <!-- TENANT LIST TABLE (NOW ON TOP) -->
+      <div class="card" style="margin-bottom: 25px;">
         <div class="card-header">
-          <h2><?php echo $editTenant ? 'Edit Tenant' : 'Add Tenant'; ?></h2>
+          <h2>Registered Tenants</h2>
+          <form method="GET" style="display:flex; gap:10px;">
+            <input type="text" name="search" placeholder="Search name or business..." value="<?php echo htmlspecialchars($search); ?>" style="padding: 8px 15px; border:1px solid #eee; border-radius:10px; width:250px;">
+            <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
+          </form>
         </div>
-        <div class="card-body">
+        <div class="card-body table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Tenant Info</th>
+                <th>Business</th>
+                <th>Stall #</th>
+                <th>Status</th>
+                <th style="width:160px;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php while($row = $result->fetch_assoc()): ?>
+                <tr>
+                  <td>
+                    <strong><?php echo htmlspecialchars($row['full_name']); ?></strong><br>
+                    <small><?php echo htmlspecialchars($row['email']); ?></small><br>
+                    <small><?php echo htmlspecialchars($row['phone']); ?></small>
+                  </td>
+                  <td>
+                    <?php echo htmlspecialchars($row['business_name']); ?><br>
+                    <small><?php echo htmlspecialchars($row['business_type']); ?></small>
+                  </td>
+                  <td><?php echo $row['stall_no'] ?: '<span style="color:#aaa;">None</span>'; ?></td>
+                  <td>
+                    <span class="status-badge <?php echo ($row['status'] === 'active' ? 'active' : 'overdue'); ?>">
+                      <?php echo strtoupper($row['status']); ?>
+                    </span>
+                  </td>
+                  <td>
+                    <div style="display:flex; gap:5px;">
+                      <a class="btn btn-primary btn-sm" href="tenants.php?edit_id=<?php echo (int)$row['id']; ?>">Edit</a>
+                      <form method="POST" action="process_tenant.php" onsubmit="return confirm('Delete this account?');">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
+                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <?php endwhile; ?>
+              <?php if ($result->num_rows === 0): ?>
+                <tr><td colspan="5">No tenants found.</td></tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- REGISTRATION MODAL -->
+      <div id="modalOverlay" class="modal-overlay <?php echo $editTenant ? 'show' : ''; ?>" onclick="handleOverlayClick(event)">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2><?php echo $editTenant ? 'Edit' : 'Register New'; ?> Tenant</h2>
+            <span class="close-modal" onclick="toggleForm()">&times;</span>
+          </div>
+          <div id="tenantFormContainer">
+            <div class="card-body" style="padding:0;">
           <form method="POST" action="process_tenant.php" onsubmit="return validateTenantForm()">
             <input type="hidden" name="action" value="<?php echo $editTenant ? 'update' : 'create'; ?>">
             <input type="hidden" name="id" value="<?php echo $editTenant['id'] ?? 0; ?>">
@@ -102,7 +227,10 @@ $result = $conn->query($query);
 
               <div class="form-group">
                 <label>Phone *</label>
-                <input type="text" name="phone" required pattern="[0-9]+" title="Numbers only" value="<?php echo htmlspecialchars($editTenant['phone'] ?? ''); ?>" placeholder="09171234567">
+                <input type="text" name="phone" required maxlength="11" 
+                       oninput="this.value = this.value.replace(/[^0-9]/g, '').substring(0, 11)" 
+                       value="<?php echo htmlspecialchars($editTenant['phone'] ?? ''); ?>" 
+                       placeholder="09171234567">
               </div>
 
               <div class="form-group">
@@ -112,6 +240,33 @@ $result = $conn->query($query);
                   <option value="inactive" <?php echo (($editTenant['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
                 </select>
               </div>
+
+              <div class="form-group">
+                <label>Assigned Stall *</label>
+                <select name="stall_id" required>
+                  <option value="">-- Choose Assigned Stall --</option>
+                  <?php 
+                  $allStalls->data_seek(0);
+                  while($s = $allStalls->fetch_assoc()): 
+                    $isMyStall = ($editTenant && $s['id'] == ($editTenant['current_stall_id'] ?? 0));
+                    $isTaken = ($s['status'] !== 'available' && !$isMyStall);
+                  ?>
+                    <option value="<?php echo $s['id']; ?>" 
+                      <?php echo $isMyStall ? 'selected' : ''; ?>
+                      <?php echo $isTaken ? 'disabled' : ''; ?>>
+                      <?php echo htmlspecialchars($s['stall_number']); ?> 
+                      <?php echo $isTaken ? '('.ucfirst($s['status']).')' : ''; ?>
+                      <?php echo $isMyStall ? '(Current)' : ''; ?>
+                    </option>
+                  <?php endwhile; ?>
+                </select>
+                <?php if ($editTenant): ?>
+                  <input type="hidden" name="original_stall_id" value="<?php echo $editTenant['current_stall_id'] ?? 0; ?>">
+                <?php endif; ?>
+                <small style="color:#666;">
+                  <?php echo $editTenant ? 'Changing stall will update current contract.' : 'Choosing a stall auto-creates a contract starting today.'; ?>
+                </small>
+              </div>
             </div>
 
             <div class="form-group">
@@ -119,8 +274,8 @@ $result = $conn->query($query);
               <textarea name="address" required rows="2" placeholder="Full Address"><?php echo htmlspecialchars($editTenant['address'] ?? ''); ?></textarea>
             </div>
 
-            <div class="form-group">
-              <label><?php echo $editTenant ? 'New Password (leave blank to keep current)' : 'Password *'; ?></label>
+            <div class="form-group" style="max-width:300px;">
+              <label><?php echo $editTenant ? 'New Password (optional)' : 'Password *'; ?></label>
               <div class="password-wrap">
                 <input id="passwordInput" type="password" name="password" <?php echo $editTenant ? '' : 'required'; ?> 
                        pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" 
@@ -130,82 +285,18 @@ $result = $conn->query($query);
               </div>
             </div>
 
-            <button class="btn btn-primary" type="submit">
-              <?php echo $editTenant ? 'Update Tenant' : 'Create Tenant Account'; ?>
+            <button class="btn btn-primary" type="submit" style="width:auto; margin-top:10px;">
+              <?php echo $editTenant ? '💾 Update Account' : '➕ Create Tenant Account'; ?>
             </button>
-
-            <?php if ($editTenant): ?>
-              <div style="margin-top:10px;">
-                <a class="btn btn-warning btn-sm" href="tenants.php">Cancel Edit</a>
-              </div>
+            <?php if($editTenant): ?>
+              <a href="tenants.php" class="btn btn-secondary" style="display:inline-block; margin-left:10px; text-decoration:none;">Cancel</a>
             <?php endif; ?>
           </form>
         </div>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Tenant List</h2>
-          <form method="GET" style="display:flex; gap:10px;">
-            <input type="text" name="search" placeholder="Search name or business..." value="<?php echo htmlspecialchars($search); ?>" style="padding: 6px 12px; border:1px solid #ddd; border-radius:8px;">
-            <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
-          </form>
-        </div>
-        <div class="card-body table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Name / Business</th>
-                <th>Stall</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th style="width:180px;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php while($row = $result->fetch_assoc()): ?>
-                <tr>
-                  <td>
-                    <strong><?php echo htmlspecialchars($row['full_name']); ?></strong><br>
-                    <small><?php echo htmlspecialchars($row['business_name']); ?> (<?php echo htmlspecialchars($row['business_type']); ?>)</small>
-                  </td>
-                  <td>
-                    <?php if ($row['stall_no']): ?>
-                      <span class="status-badge occupied"><?php echo htmlspecialchars($row['stall_no']); ?></span>
-                    <?php else: ?>
-                      <small>No Stall</small>
-                    <?php endif; ?>
-                  </td>
-                  <td>
-                    <small><?php echo htmlspecialchars($row['email']); ?></small><br>
-                    <small><?php echo htmlspecialchars($row['phone']); ?></small>
-                  </td>
-                  <td>
-                    <span class="status-badge <?php echo htmlspecialchars($row['status']); ?>">
-                      <?php echo htmlspecialchars($row['status']); ?>
-                    </span>
-                  </td>
-                  <td>
-                    <div style="display:flex; gap:5px;">
-                      <a class="btn btn-warning btn-sm" href="tenants.php?edit_id=<?php echo (int)$row['id']; ?>">Edit</a>
-                      <a class="btn btn-success btn-sm" href="payments.php?tenant_id=<?php echo (int)$row['id']; ?>">Payments</a>
-                      <form method="POST" action="process_tenant.php" onsubmit="return confirm('Delete this tenant?');">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              <?php endwhile; ?>
-              <?php if ($result->num_rows === 0): ?>
-                <tr><td colspan="5">No tenants found.</td></tr>
-              <?php endif; ?>
-            </tbody>
-          </table>
+          </div>
         </div>
       </div>
-
     </div>
   </main>
 </div>
@@ -216,18 +307,52 @@ function toggleSidebar() {
   document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 
+function toggleForm() {
+    const f = document.getElementById('modalOverlay');
+    const b = document.body;
+    f.classList.toggle('show');
+    
+    if (f.classList.contains('show')) {
+        b.style.overflow = 'hidden'; // Lock background scroll
+    } else {
+        b.style.overflow = 'auto'; // Re-enable scroll
+        if (window.location.search.includes('edit_id')) {
+            window.location.href = 'tenants.php';
+        }
+    }
+}
+
+function handleOverlayClick(e) {
+    if (e.target.id === 'modalOverlay') {
+        toggleForm();
+    }
+}
+
 function togglePassword(){
   const input = document.getElementById('passwordInput');
   const btn = document.querySelector('.pw-toggle');
-  const isHidden = input.type === 'password';
-  input.type = isHidden ? 'text' : 'password';
-  btn.textContent = isHidden ? 'Hide' : 'Show';
+  input.type = (input.type === 'password') ? 'text' : 'password';
+  btn.textContent = (input.type === 'password') ? 'Show' : 'Hide';
 }
 
 function validateTenantForm() {
-  // Additional JS validation if needed
+  const phone = document.querySelector('input[name="phone"]').value;
+  if (phone.length !== 11) {
+    Swal.fire({ icon: 'error', title: 'Invalid Phone Number', text: 'Phone number must be exactly 11 digits.' });
+    return false;
+  }
   return true;
 }
+
+// --- SWEETALERT FLASH HANDLER ---
+<?php if ($flash): ?>
+  Swal.fire({
+    icon: '<?php echo (strpos(strtolower($flash), 'error') !== false || strpos(strtolower($flash), 'exists') !== false) ? "error" : "success"; ?>',
+    title: '<?php echo (strpos(strtolower($flash), 'error') !== false || strpos(strtolower($flash), 'exists') !== false) ? "Oops!" : "Success!"; ?>',
+    text: '<?php echo htmlspecialchars($flash); ?>',
+    confirmButtonColor: '#d63384'
+  });
+<?php endif; ?>
 </script>
 </body>
 </html>

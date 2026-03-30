@@ -1,19 +1,18 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-requireTenant();
+requireAdmin();
 
-$tenantId = (int)$_SESSION['user_id'];
-$initial = strtoupper(substr($_SESSION['full_name'] ?? 'T', 0, 1));
-
-$unread = notifUnreadCount($tenantId);
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 
 $stmt = $conn->prepare("
-  SELECT *
-  FROM notifications
-  WHERE user_id=?
-  ORDER BY id DESC
+  SELECT n.*, u.full_name as sender_name
+  FROM notifications n
+  LEFT JOIN users u ON u.id = ? -- This is just to satisfy the structure if needed, but notifications are usually system-gen
+  WHERE n.user_id=?
+  ORDER BY n.id DESC
 ");
-$stmt->bind_param("i", $tenantId);
+$stmt->bind_param("ii", $adminId, $adminId);
 $stmt->execute();
 $notifs = $stmt->get_result();
 ?>
@@ -22,8 +21,8 @@ $notifs = $stmt->get_result();
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Notifications - Tenant</title>
-  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <title>Notifications - Admin</title>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
 </head>
 <body>
 <div class="dashboard">
@@ -31,39 +30,40 @@ $notifs = $stmt->get_result();
     <div class="sidebar-header">
       <span class="logo">🏪</span>
       <h2>A&J Alfresco</h2>
-      <p>Tenant Panel</p>
+      <p>Admin Panel</p>
     </div>
     <ul class="sidebar-menu">
       <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
-      <li>
-        <a class="active" href="notifications.php"><span class="icon">🔔</span> Notifications
-          <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
-        </a>
-      </li>
-      <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
+      <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
+      <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
+      <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
+      <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
+      <li><a class="active" href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>
   </aside>
 
   <main class="main-content">
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div class="top-bar">
-      <h1>Notifications</h1>
+      <div class="header-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <h1>Notifications</h1>
+      </div>
       <div class="user-info">
-        <div class="avatar"><?php echo $initial; ?></div>
+        <div class="avatar"></div>
         <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
       </div>
     </div>
 
     <div class="content">
       <div class="card">
-        <div class="card-header">
-          <h2>All Notifications</h2>
+        <div class="card-header" style="justify-content: space-between; align-items: center;">
+          <h2>Admin Alerts</h2>
           <form method="POST" action="process_notifications.php" style="margin:0">
             <input type="hidden" name="action" value="mark_all_read">
-            <button class="btn btn-warning btn-sm" type="submit">Mark All as Read</button>
+            <button class="btn btn-warning btn-sm" type="submit">Mark All Read</button>
           </form>
         </div>
 
@@ -81,13 +81,13 @@ $notifs = $stmt->get_result();
             </thead>
             <tbody>
               <?php while($n = $notifs->fetch_assoc()): ?>
-                <tr>
-                  <td><?php echo htmlspecialchars($n['title']); ?></td>
+                <tr class="<?php echo $n['is_read'] ? '' : 'unread-row'; ?>">
+                  <td><strong><?php echo htmlspecialchars($n['title']); ?></strong></td>
                   <td><?php echo htmlspecialchars($n['message']); ?></td>
-                  <td><?php echo htmlspecialchars($n['type']); ?></td>
+                  <td><span class="status-badge <?php echo htmlspecialchars($n['type']); ?>"><?php echo htmlspecialchars($n['type']); ?></span></td>
                   <td>
                     <?php if ((int)$n['is_read'] === 1): ?>
-                      <span class="status-badge active">read</span>
+                      <span class="status-badge paid">read</span>
                     <?php else: ?>
                       <span class="status-badge pending">unread</span>
                     <?php endif; ?>
@@ -98,7 +98,7 @@ $notifs = $stmt->get_result();
                       <form method="POST" action="process_notifications.php" style="display:inline-block;margin:0">
                         <input type="hidden" name="action" value="mark_one_read">
                         <input type="hidden" name="id" value="<?php echo (int)$n['id']; ?>">
-                        <button class="btn btn-success btn-sm" type="submit">Mark Read</button>
+                        <button class="btn btn-success btn-sm" type="submit" style="width:auto; padding: 4px 8px;">Mark Read</button>
                       </form>
                     <?php else: ?>
                       <small>No action</small>
@@ -108,15 +108,20 @@ $notifs = $stmt->get_result();
               <?php endwhile; ?>
 
               <?php if ($notifs->num_rows === 0): ?>
-                <tr><td colspan="6">No notifications yet.</td></tr>
+                <tr><td colspan="6">No notifications found for your account.</td></tr>
               <?php endif; ?>
             </tbody>
           </table>
         </div>
       </div>
-
     </div>
   </main>
 </div>
+<script>
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+</script>
 </body>
 </html>

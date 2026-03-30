@@ -39,25 +39,18 @@ $stmt2->bind_param("i", $tenantId);
 $stmt2->execute();
 $recentPayments = $stmt2->get_result();
 
-// Notifications (latest 5)
-$stmt3 = $conn->prepare("
-  SELECT *
-  FROM notifications
-  WHERE user_id=?
-  ORDER BY id DESC
-  LIMIT 5
-");
-$stmt3->bind_param("i", $tenantId);
-$stmt3->execute();
-$notifs = $stmt3->get_result();
-
 $unread = notifUnreadCount($tenantId);
 
-// Due date logic (1st of month)
-$today = new DateTime();
-$nextDue = new DateTime($today->format('Y-m') . '-01');
-if ((int)$today->format('d') > 1) $nextDue->modify('+1 month');
-$daysToDue = (int)$today->diff($nextDue)->days;
+// Due date calculation (Realtime Target)
+$dueTargetJS = "";
+if ($contract) {
+    $today = new DateTime('today');
+    $nextDue = new DateTime($contract['start_date']);
+    while ($nextDue <= $today) {
+        $nextDue->modify('+1 month');
+    }
+    $dueTargetJS = $nextDue->format('Y-m-d H:i:s');
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -65,8 +58,8 @@ $daysToDue = (int)$today->diff($nextDue)->days;
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tenant Dashboard - A&J Alfresco</title>
-  <link rel="stylesheet" href="../assets/css/style.css"/>
-  <script defer src="../assets/js/main.js"></script>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 <div class="dashboard">
@@ -79,8 +72,13 @@ $daysToDue = (int)$today->diff($nextDue)->days;
     <ul class="sidebar-menu">
       <li><a class="active" href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
       <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> My Payments</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
+      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
+      <li>
+        <a href="notifications.php"><span class="icon">🔔</span> Notifications
+          <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
+        </a>
+      </li>
       <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>
@@ -94,7 +92,7 @@ $daysToDue = (int)$today->diff($nextDue)->days;
         <h1>Welcome, <?php echo htmlspecialchars($tenantInfo['full_name']); ?>!</h1>
       </div>
       <div class="user-info">
-        <div style="text-align: right; margin-right: 20px; line-height: 1.2;">
+        <div class="header-stats" style="text-align: right; margin-right: 20px; line-height: 1.2;">
           <div style="font-size: 11px; color: #666; font-weight: 600;">Security Deposit: <?php echo $contract ? formatMoney($contract['deposit_amount']) : '₱0.00'; ?></div>
           <div style="font-size: 14px; color: #d63384; font-weight: 700;">Rent: <?php echo $contract ? formatMoney($contract['monthly_rent']) : '₱0.00'; ?></div>
         </div>
@@ -105,31 +103,14 @@ $daysToDue = (int)$today->diff($nextDue)->days;
 
     <div class="content">
 
-      <!-- TENANT PROFILE SUMMARY -->
-      <div class="card" style="margin-bottom: 25px;">
-        <div class="card-body" style="display: flex; gap: 40px; align-items: center; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 250px;">
-            <h2 style="color: #d63384; margin-bottom: 5px;"><?php echo htmlspecialchars($tenantInfo['business_name']); ?></h2>
-            <p style="color: #666; margin: 0;"><?php echo htmlspecialchars($tenantInfo['business_type']); ?> — Serving Quality Food</p>
-          </div>
-          <div style="flex: 1; min-width: 250px;">
-            <p style="margin: 0;"><strong>📧 Email:</strong> <?php echo htmlspecialchars($tenantInfo['email']); ?></p>
-            <p style="margin: 0;"><strong>📞 Phone:</strong> <?php echo htmlspecialchars($tenantInfo['phone']); ?></p>
-          </div>
-          <div style="flex: 1; min-width: 250px;">
-            <p style="margin: 0;"><strong>📍 Address:</strong></p>
-            <p style="margin: 0; color: #666;"><?php echo htmlspecialchars($tenantInfo['address']); ?></p>
-          </div>
-        </div>
-      </div>
-
       <div class="stats-grid">
-        <div class="stat-card">
+        <div class="stat-card" style="position: relative; overflow: hidden;">
           <div class="stat-icon blue">⏰</div>
           <div class="stat-info">
-            <h3><?php echo $daysToDue; ?></h3>
-            <p>Days until rent due (1st)</p>
+            <h3 id="countdownTimer">--:--:--</h3>
+            <p>Real-time until rent due</p>
           </div>
+          <div style="position:absolute; bottom:0; left:0; height:4px; background:#007bff; width:100%; opacity:0.3;"></div>
         </div>
 
         <div class="stat-card">
@@ -149,14 +130,17 @@ $daysToDue = (int)$today->diff($nextDue)->days;
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-top: 25px;">
         <!-- CONTRACT SUMMARY -->
         <div class="card">
           <div class="card-header">
             <h2>Current Contract</h2>
-            <?php if ($contract): ?>
-              <a class="btn btn-primary btn-sm" href="../admin/print_contract.php?id=<?php echo (int)$contract['id']; ?>" target="_blank">Print Copy</a>
-            <?php endif; ?>
+            <div style="display:flex; gap:10px;">
+              <a class="btn btn-success btn-sm" href="make_payment.php" style="width:auto;">Pay Online</a>
+              <?php if ($contract): ?>
+                <a class="btn btn-primary btn-sm" href="../admin/print_contract.php?id=<?php echo (int)$contract['id']; ?>" target="_blank" style="width:auto;">Print PDF</a>
+              <?php endif; ?>
+            </div>
           </div>
           <div class="card-body">
             <?php if (!$contract): ?>
@@ -167,12 +151,8 @@ $daysToDue = (int)$today->diff($nextDue)->days;
                 <div style="font-size: 0.9em; color: #666; margin-left: 20px;"><?php echo htmlspecialchars($contract['location_description']); ?></div>
                 <hr style="border:none; border-top:1px solid #eee;">
                 <div><b>Period:</b> <?php echo formatDate($contract['start_date']); ?> to <?php echo formatDate($contract['end_date']); ?></div>
+                <div><b>Due Day:</b> Every <?php echo date('jS', strtotime($contract['start_date'])); ?> of the month</div>
                 <div><b>Monthly Rent:</b> <?php echo formatMoney($contract['monthly_rent']); ?></div>
-                <div><b>Status:</b>
-                  <span class="status-badge <?php echo htmlspecialchars($contract['status']); ?>">
-                    <?php echo htmlspecialchars($contract['status']); ?>
-                  </span>
-                </div>
               </div>
             <?php endif; ?>
           </div>
@@ -182,7 +162,7 @@ $daysToDue = (int)$today->diff($nextDue)->days;
         <div class="card">
           <div class="card-header">
             <h2>Recent Payments</h2>
-            <a class="btn btn-success btn-sm" href="payments.php">View All</a>
+            <a class="btn btn-primary btn-sm" href="payments.php" style="width:auto;">History</a>
           </div>
           <div class="card-body table-responsive">
             <table>
@@ -191,7 +171,6 @@ $daysToDue = (int)$today->diff($nextDue)->days;
                   <th>Month</th>
                   <th>Amount</th>
                   <th>Date</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,24 +179,64 @@ $daysToDue = (int)$today->diff($nextDue)->days;
                     <td><?php echo date('M Y', strtotime($p['payment_for_month'].'-01')); ?></td>
                     <td><?php echo formatMoney($p['amount']); ?></td>
                     <td><?php echo formatDate($p['payment_date']); ?></td>
-                    <td>
-                      <a class="btn btn-success btn-sm" target="_blank" href="receipt.php?id=<?php echo (int)$p['id']; ?>">Receipt</a>
-                    </td>
                   </tr>
                 <?php endwhile; ?>
                 <?php if ($recentPayments->num_rows === 0): ?>
-                  <tr><td colspan="4">No payments found.</td></tr>
+                  <tr><td colspan="3">No payments recorded.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
           </div>
         </div>
       </div>
-
     </div>
   </main>
 </div>
 
+<script>
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+// REAL-TIME COUNTDOWN LOGIC
+const targetDateStr = "<?php echo $dueTargetJS; ?>";
+if (targetDateStr) {
+    const targetDate = new Date(targetDateStr).getTime();
+    
+    const x = setInterval(function() {
+        const now = new Date().getTime();
+        const distance = targetDate - now;
+
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+        if (distance < 0) {
+            clearInterval(x);
+            document.getElementById("countdownTimer").innerHTML = "PAYMENT DUE";
+            document.getElementById("countdownTimer").style.color = "red";
+        } else {
+            document.getElementById("countdownTimer").innerHTML = days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+        }
+    }, 1000);
+} else {
+    document.getElementById("countdownTimer").innerHTML = "N/A";
+}
+
+// TOAST NOTIFICATIONS FOR UNREAD
+<?php if ($unread > 0): ?>
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: 'You have <?php echo $unread; ?> unread notifications!',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+    });
+<?php endif; ?>
 </script>
 </body>
 </html>

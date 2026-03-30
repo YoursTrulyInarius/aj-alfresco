@@ -16,11 +16,15 @@ if ($editId > 0) {
     $editStall = $stmt->get_result()->fetch_assoc();
 }
 
-$query = "SELECT * FROM stalls";
+$query = "SELECT s.*, 
+            (SELECT u.full_name FROM users u 
+             JOIN contracts c ON u.id = c.tenant_id 
+             WHERE c.stall_id = s.id AND c.status='active' LIMIT 1) as occupant_name
+          FROM stalls s";
 if ($search) {
-    $query .= " WHERE stall_number LIKE '%$search%' OR stall_name LIKE '%$search%' OR location_description LIKE '%$search%'";
+    $query .= " WHERE s.stall_number LIKE '%$search%' OR s.stall_name LIKE '%$search%' OR s.location_description LIKE '%$search%'";
 }
-$query .= " ORDER BY id DESC";
+$query .= " ORDER BY s.id DESC";
 $result = $conn->query($query);
 
 function selected($a, $b) {
@@ -28,6 +32,9 @@ function selected($a, $b) {
 }
 
 $statusVal = $editStall['status'] ?? 'available';
+
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -35,7 +42,7 @@ $statusVal = $editStall['status'] ?? 'available';
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Stalls - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
@@ -52,6 +59,7 @@ $statusVal = $editStall['status'] ?? 'available';
       <li><a class="active" href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
       <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
       <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
+      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
       <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>
@@ -154,6 +162,7 @@ $statusVal = $editStall['status'] ?? 'available';
               <tr>
                 <th>Stall #</th>
                 <th>Name / Location</th>
+                <th>Occupant</th>
                 <th>Monthly Rate</th>
                 <th>Status</th>
                 <th style="width:190px;">Action</th>
@@ -166,6 +175,13 @@ $statusVal = $editStall['status'] ?? 'available';
                   <td>
                     <?php echo htmlspecialchars($row['stall_name'] ?? 'No Name'); ?><br>
                     <small><?php echo htmlspecialchars($row['location_description'] ?? ''); ?></small>
+                  </td>
+                  <td>
+                    <?php if ($row['occupant_name']): ?>
+                      <strong>👤 <?php echo htmlspecialchars($row['occupant_name']); ?></strong>
+                    <?php else: ?>
+                      <span style="color:#aaa;">Available</span>
+                    <?php endif; ?>
                   </td>
                   <td><?php echo formatMoney($row['monthly_rate']); ?></td>
                   <td>

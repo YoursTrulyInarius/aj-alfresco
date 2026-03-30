@@ -18,6 +18,7 @@ $stmt = $conn->prepare("
 $stmt->bind_param("i", $tenantId);
 $stmt->execute();
 $contract = $stmt->get_result()->fetch_assoc();
+$unread = notifUnreadCount($tenantId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -38,8 +39,13 @@ $contract = $stmt->get_result()->fetch_assoc();
     <ul class="sidebar-menu">
       <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
       <li><a class="active" href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> My Payments</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications</a></li>
+      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
+      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
+      <li>
+        <a href="notifications.php"><span class="icon">🔔</span> Notifications
+          <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
+        </a>
+      </li>
       <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
       <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
     </ul>

@@ -10,6 +10,9 @@ $stallAvailable = $stallAvailableRes ? (int)$stallAvailableRes->fetch_assoc()['c
 
 $activeContractsRes = $conn->query("SELECT COUNT(*) c FROM contracts WHERE status='active'");
 $activeContracts = $activeContractsRes ? (int)$activeContractsRes->fetch_assoc()['c'] : 0;
+
+$adminId = (int)$_SESSION['user_id'];
+$unread = notifUnreadCount($adminId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -17,7 +20,7 @@ $activeContracts = $activeContractsRes ? (int)$activeContractsRes->fetch_assoc()
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin Dashboard - A&J Alfresco</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
 </head>
 <body>
   <div class="dashboard">
@@ -33,9 +36,9 @@ $activeContracts = $activeContractsRes ? (int)$activeContractsRes->fetch_assoc()
         <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
         <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
         <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
+        <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
         <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
         <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
-        
       </ul>
     </aside>
 
