@@ -48,7 +48,15 @@ if ($status === 'succeeded') {
         $receipt = generateReceiptNumber();
         $date = date('Y-m-d');
         $operator = 'System (PayMongo)';
+        
+        // Extract the actual e-wallet source type (e.g., 'gcash', 'paymaya', 'grab_pay')
         $method = 'paymongo';
+        if (!empty($resObj['data']['attributes']['payments'])) {
+            $firstPayment = $resObj['data']['attributes']['payments'][0];
+            if (isset($firstPayment['attributes']['source']['type'])) {
+                $method = $firstPayment['attributes']['source']['type'];
+            }
+        }
 
         $ins = $conn->prepare("
           INSERT INTO payments(contract_id, tenant_id, amount, payment_date, payment_for_month, payment_method, reference_number, receipt_number, operator, notes, status)

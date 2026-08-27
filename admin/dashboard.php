@@ -20,26 +20,30 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin Dashboard - A&J Alfresco</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
 </head>
 <body>
   <div class="dashboard">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <span class="logo">🏪</span>
-        <h2>A&J Alfresco</h2>
-        <p>Admin Panel</p>
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-name">A&J Alfresco</span>
+          <span class="sidebar-brand-sub">Admin Panel</span>
+        </div>
       </div>
+      <p class="sidebar-nav-label">Main Menu</p>
       <ul class="sidebar-menu">
-        <li><a class="active" href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-        <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
-        <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
-        <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
-        <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
-        <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-        <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
-        <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+        <li><a class="active" href="dashboard.php">Dashboard</a></li>
+        <li><a href="tenants.php">Tenants</a></li>
+        <li><a href="stalls.php">Stalls</a></li>
+        <li><a href="contracts.php">Contracts</a></li>
+        <li><a href="payments.php">Payments</a></li>
+        <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+        <li><a href="reports.php">Reports</a></li>
       </ul>
+      <div class="sidebar-footer">
+        <a href="logout.php">Logout</a>
+      </div>
     </aside>
 
     <main class="main-content">

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/smtp.php';
 
 function redirect($url) {
     header("Location: $url");
@@ -64,9 +65,37 @@ function createNotification($userId, $title, $message, $type='general') {
     $stmt->bind_param("isss", $userId, $title, $message, $type);
     $stmt->execute();
 }
-?>
-<?php
-// === Auto reminders for TENANT dashboard (pop-up notifications) ===
+
+function sendMail($toEmail, $toName, $subject, $htmlBody) {
+    require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
+    require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+    require_once __DIR__ . '/../PHPMailer/src/Exception.php';
+
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = SMTP_HOST;
+        $mail->SMTPAuth   = true;
+        $mail->Username   = SMTP_USERNAME;
+        $mail->Password   = SMTP_PASSWORD;
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = SMTP_PORT;
+
+        $mail->setFrom(SMTP_FROM, SMTP_FROM_NAME);
+        $mail->addAddress($toEmail, $toName);
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body    = $htmlBody;
+        $mail->AltBody = strip_tags($htmlBody);
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("PHPMailer error: " . $mail->ErrorInfo);
+        return false;
+    }
+}
+
 function tenantAutoReminders($tenantId) {
     global $conn;
 
@@ -88,46 +117,148 @@ function tenantAutoReminders($tenantId) {
     
     $daysToDue = (int)$today->diff($nextDue)->days;
 
-    // Send notification exactly 7 days before due date (1 week)
-    if ($daysToDue > 0 && $daysToDue <= 7) {
-        // check if notification for this target already exists to avoid duplicates
-        $monthStr = $nextDue->format('F Y');
+    // (A) Rent due reminder — fire at exactly 7, 3, and 1 days before
+    $reminderMilestones = [7, 3, 1];
+
+    if (in_array($daysToDue, $reminderMilestones)) {
+        $monthStr  = $nextDue->format('F Y');
+        $dueLabel  = date('M d, Y', strtotime($nextDue->format('Y-m-d')));
+
+        // Deduplication: one notification per milestone per month
+        $milestoneKey = "$monthStr|{$daysToDue}d";
         $chk = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
-        $likeMsg = "%$monthStr%";
+        $likeMsg = "%$milestoneKey%";
         $chk->bind_param("is", $tenantId, $likeMsg);
         $chk->execute();
 
         if ($chk->get_result()->num_rows === 0) {
+            // Urgency label
+            if ($daysToDue === 1) {
+                $urgency = "TOMORROW";
+                $badge   = "🔴";
+                $color   = "#dc2626";
+            } elseif ($daysToDue === 3) {
+                $urgency = "in 3 DAYS";
+                $badge   = "🟠";
+                $color   = "#ea580c";
+            } else {
+                $urgency = "in 1 WEEK";
+                $badge   = "🟡";
+                $color   = "#d97706";
+            }
+
+            // In-app notification (includes milestone key for dedup)
             createNotification(
                 $tenantId,
-                "Upcoming Rent Payment",
-                "Heads up! Your rent for $monthStr is due in $daysToDue day(s). (Due on ".date('M d', strtotime($nextDue->format('Y-m-d'))).")",
+                "Rent Due $urgency",
+                "[$milestoneKey] Your rent for $monthStr is due $urgency. (Due on $dueLabel)",
                 "due_date"
             );
+
+            // Fetch tenant email
+            $uStmt = $conn->prepare("SELECT full_name, email FROM users WHERE id=? LIMIT 1");
+            $uStmt->bind_param("i", $tenantId);
+            $uStmt->execute();
+            $user = $uStmt->get_result()->fetch_assoc();
+
+            if ($user && !empty($user['email'])) {
+                $subject = "Rent Due $urgency — A&J Alfresco";
+                $html = "
+                <div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:10px;overflow:hidden;'>
+                  <div style='background:#d63384;padding:24px;text-align:center;'>
+                    <h2 style='color:#fff;margin:0;'>A&amp;J Alfresco</h2>
+                    <p style='color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;'>Rental Management System</p>
+                  </div>
+                  <div style='padding:28px 32px;background:#fff;'>
+                    <p style='font-size:15px;color:#1e293b;'>Hi <strong>{$user['full_name']}</strong>,</p>
+                    <p style='color:#475569;line-height:1.7;'>This is a reminder that your <strong>monthly rent</strong> for <strong>$monthStr</strong> is due <strong style='color:$color;'>$urgency</strong>.</p>
+                    <div style='background:#fdf2f7;border-left:4px solid $color;border-radius:6px;padding:14px 18px;margin:20px 0;'>
+                      <p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Due Date:</strong> $dueLabel</p>
+                      <p style='margin:0;font-size:13px;color:$color;font-weight:700;'>$badge Days Remaining: $daysToDue</p>
+                    </div>
+                    <p style='color:#475569;line-height:1.7;'>Please ensure your payment is made on or before the due date to avoid penalties.</p>
+                    <p style='color:#94a3b8;font-size:12px;margin-top:28px;'>If you have already paid, please disregard this message.</p>
+                  </div>
+                  <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'>
+                    <p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p>
+                  </div>
+                </div>";
+
+                sendMail($user['email'], $user['full_name'], $subject, $html);
+            }
         }
     }
 
-    // (B) Contract expiry reminder: within 14 days
-    $stmt2 = $conn->prepare("SELECT DATEDIFF(?, CURDATE()) AS days_left");
-    $stmt2->bind_param("s", $contract['end_date']);
-    $stmt2->execute();
-    $daysLeftRow = $stmt2->get_result()->fetch_assoc();
-    $daysLeft = (int)($daysLeftRow['days_left'] ?? 9999);
+    // (B) Contract expiry reminder — fire at exactly 90, 60, and 30 days before end date
+    $expiryMilestones = [90, 60, 30]; // 3 months, 2 months, 1 month
 
-    if ($daysLeft >= 0 && $daysLeft <= 14) {
-        $chk2 = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='contract_expiry' AND DATE(created_at)=CURDATE() LIMIT 1");
-        $chk2->bind_param("i", $tenantId);
+    $stmt2 = $conn->prepare("SELECT DATEDIFF(end_date, CURDATE()) AS days_left FROM contracts WHERE id=? LIMIT 1");
+    $stmt2->bind_param("i", $contract['id']);
+    $stmt2->execute();
+    $daysLeft = (int)($stmt2->get_result()->fetch_assoc()['days_left'] ?? 9999);
+
+    if (in_array($daysLeft, $expiryMilestones)) {
+        $endLabel = date('M d, Y', strtotime($contract['end_date']));
+
+        // Urgency label per milestone
+        if ($daysLeft === 30) {
+            $urgency  = "1 MONTH";   $badge = "🔴"; $color = "#dc2626";
+        } elseif ($daysLeft === 60) {
+            $urgency  = "2 MONTHS";  $badge = "🟠"; $color = "#ea580c";
+        } else {
+            $urgency  = "3 MONTHS";  $badge = "🟡"; $color = "#d97706";
+        }
+
+        // Deduplication key: one notification per milestone per contract
+        $milestoneKey = "contract#{$contract['id']}|{$daysLeft}d";
+        $chk2 = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='contract_expiry' AND message LIKE ? LIMIT 1");
+        $likeMsg2 = "%$milestoneKey%";
+        $chk2->bind_param("is", $tenantId, $likeMsg2);
         $chk2->execute();
 
         if ($chk2->get_result()->num_rows === 0) {
+            // In-app notification
             createNotification(
                 $tenantId,
-                "Contract Expiring Soon",
-                "Your contract will expire in $daysLeft day(s). Please request renewal if needed.",
+                "Contract Expiring in $urgency",
+                "[$milestoneKey] Your contract ends on $endLabel — that's $daysLeft day(s) away. Please request renewal if needed.",
                 "contract_expiry"
             );
+
+            // Fetch tenant email
+            $uStmt3 = $conn->prepare("SELECT full_name, email FROM users WHERE id=? LIMIT 1");
+            $uStmt3->bind_param("i", $tenantId);
+            $uStmt3->execute();
+            $user3 = $uStmt3->get_result()->fetch_assoc();
+
+            if ($user3 && !empty($user3['email'])) {
+                $subject3 = "Contract Expiring in $urgency — A&J Alfresco";
+                $html3 = "
+                <div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:10px;overflow:hidden;'>
+                  <div style='background:#d63384;padding:24px;text-align:center;'>
+                    <h2 style='color:#fff;margin:0;'>A&amp;J Alfresco</h2>
+                    <p style='color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;'>Rental Management System</p>
+                  </div>
+                  <div style='padding:28px 32px;background:#fff;'>
+                    <p style='font-size:15px;color:#1e293b;'>Hi <strong>{$user3['full_name']}</strong>,</p>
+                    <p style='color:#475569;line-height:1.7;'>We would like to inform you that your <strong>stall rental contract</strong> with A&amp;J Alfresco is expiring in <strong style='color:$color;'>$urgency</strong>.</p>
+                    <div style='background:#fdf2f7;border-left:4px solid $color;border-radius:6px;padding:14px 18px;margin:20px 0;'>
+                      <p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Contract End Date:</strong> $endLabel</p>
+                      <p style='margin:0;font-size:13px;color:$color;font-weight:700;'>$badge Days Remaining: $daysLeft</p>
+                    </div>
+                    <p style='color:#475569;line-height:1.7;'>If you wish to continue renting, please <strong>submit a renewal request</strong> through your tenant portal or contact the A&amp;J Alfresco admin directly.</p>
+                    <p style='color:#94a3b8;font-size:12px;margin-top:28px;'>If you no longer wish to renew, please disregard this message.</p>
+                  </div>
+                  <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'>
+                    <p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p>
+                  </div>
+                </div>";
+
+                sendMail($user3['email'], $user3['full_name'], $subject3, $html3);
+            }
         }
     }
+
 }
 
 // Get unread notifications (for toast popups)

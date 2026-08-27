@@ -42,29 +42,120 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Stalls - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=9"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(8px);
+    }
+    .modal-content {
+      background: #fff;
+      padding: 36px;
+      border-radius: 24px;
+      width: 95%;
+      max-width: 680px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 70px rgba(30, 41, 59, 0.15);
+      position: relative;
+      z-index: 1010;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary) var(--bg);
+    }
+    .modal-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-content::-webkit-scrollbar-track {
+      background: var(--bg);
+      border-radius: 10px;
+    }
+    .modal-content::-webkit-scrollbar-thumb {
+      background-color: var(--primary);
+      border-radius: 10px;
+    }
+    .modal-header {
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 {
+      margin: 0;
+      color: var(--secondary);
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+    }
+    .close-modal {
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.2s;
+    }
+    .close-modal:hover { color: var(--primary); transform: scale(1.15); }
+    #stallForm {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    #stallForm .form-group {
+      margin-bottom: 0;
+    }
+    #stallForm .full-width {
+      grid-column: span 2;
+    }
+    #stallForm.is-create #statusFormGroup {
+      display: none;
+    }
+    #stallForm.is-edit #statusFormGroup {
+      display: block;
+    }
+    @media (max-width: 600px) {
+      #stallForm {
+        grid-template-columns: 1fr;
+      }
+      #stallForm .full-width {
+        grid-column: span 1;
+      }
+    }
+  </style>
 </head>
 <body>
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Admin Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Admin Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
-      <li><a class="active" href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
-      <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-      <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="tenants.php">Tenants</a></li>
+      <li><a class="active" href="stalls.php">Stalls</a></li>
+      <li><a href="contracts.php">Contracts</a></li>
+      <li><a href="payments.php">Payments</a></li>
+      <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="reports.php">Reports</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">
@@ -94,41 +185,44 @@ $unread = notifUnreadCount($adminId);
             <span style="font-size:30px; cursor:pointer;" onclick="toggleForm()">&times;</span>
           </div>
 
-          <form id="stallForm" method="POST" action="process_stall.php">
+          <form id="stallForm" class="<?php echo $editStall ? 'is-edit' : 'is-create'; ?>" method="POST" action="process_stall.php">
             <input type="hidden" name="action" value="<?php echo $editStall ? 'update' : 'create'; ?>">
             <input type="hidden" name="id" value="<?php echo (int)($editStall['id'] ?? 0); ?>">
 
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-              <div class="form-group">
-                <label>Stall Number *</label>
-                <input type="text" name="stall_number" required placeholder="e.g., S-001" value="<?php echo htmlspecialchars($editStall['stall_number'] ?? ''); ?>">
-              </div>
-              <div class="form-group">
-                <label>Stall Name (optional)</label>
-                <input type="text" name="stall_name" placeholder="e.g., Food Stall A" value="<?php echo htmlspecialchars($editStall['stall_name'] ?? ''); ?>">
-              </div>
-              <div class="form-group">
-                <label>Monthly Rate (PHP) *</label>
-                <input type="text" name="monthly_rate" required class="money-input" placeholder="0.00" value="<?php echo htmlspecialchars($editStall['monthly_rate'] ?? '0.00'); ?>">
-              </div>
-              <div class="form-group">
-                <label>Status</label>
-                <select name="status">
-                  <option value="available" <?php echo selected($statusVal, 'available'); ?>>Available</option>
-                  <option value="occupied" <?php echo selected($statusVal, 'occupied'); ?>>Occupied</option>
-                  <option value="maintenance" <?php echo selected($statusVal, 'maintenance'); ?>>Maintenance</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label>Stall Number *</label>
+              <input type="text" name="stall_number" required placeholder="e.g., S-001" value="<?php echo htmlspecialchars($editStall['stall_number'] ?? ''); ?>">
+            </div>
+            
+            <div class="form-group">
+              <label>Stall Name (optional)</label>
+              <input type="text" name="stall_name" placeholder="e.g., Food Stall A" value="<?php echo htmlspecialchars($editStall['stall_name'] ?? ''); ?>">
+            </div>
+            
+            <div class="form-group" id="monthlyRateGroup">
+              <label>Monthly Rate (PHP) *</label>
+              <input type="text" name="monthly_rate" required class="money-input" placeholder="0.00" value="<?php echo htmlspecialchars($editStall['monthly_rate'] ?? '0.00'); ?>">
+            </div>
+            
+            <div class="form-group" id="statusFormGroup">
+              <label>Status</label>
+              <select name="status">
+                <option value="available" <?php echo selected($statusVal, 'available'); ?>>Available</option>
+                <option value="occupied" <?php echo selected($statusVal, 'occupied'); ?>>Occupied</option>
+                <option value="maintenance" <?php echo selected($statusVal, 'maintenance'); ?>>Maintenance</option>
+              </select>
             </div>
 
-            <div class="form-group" style="margin-top:15px;">
+            <div class="form-group full-width">
               <label>Location Description *</label>
-              <textarea name="location_description" required rows="2" placeholder="e.g. Ground Floor, Left Wing"><?php echo htmlspecialchars($editStall['location_description'] ?? ''); ?></textarea>
+              <textarea name="location_description" required rows="2" placeholder="e.g. Ground Floor, Left Wing" style="width: 100%; padding: 11px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: #fafbfc; font-size: 14px; outline: none; transition: border-color .2s ease, box-shadow .2s ease; font-family: 'Inter'; color: var(--text); resize: none;"><?php echo htmlspecialchars($editStall['location_description'] ?? ''); ?></textarea>
             </div>
 
-            <button class="btn btn-primary" type="submit" style="width:auto; margin-top:10px;">
-              <?php echo $editStall ? '💾 Update Stall' : '➕ Create Stall'; ?>
-            </button>
+            <div class="full-width" style="display: flex; gap: 12px; margin-top: 10px; justify-content: flex-end;">
+              <button class="btn btn-primary" type="submit" style="width:auto; padding: 12px 28px;">
+                <?php echo $editStall ? 'Update Stall' : 'Create Stall'; ?>
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -223,7 +317,13 @@ function toggleForm() {
         form.querySelector('input[name="action"]').value = 'create';
         form.querySelector('input[name="id"]').value = '0';
         document.getElementById('modalTitle').textContent = 'Add New Stall';
-        form.querySelector('button[type="submit"]').textContent = '➕ Create Stall';
+        form.querySelector('button[type="submit"]').textContent = 'Create Stall';
+        
+        form.classList.remove('is-edit');
+        form.classList.add('is-create');
+        
+        const statusGroup = document.getElementById('statusFormGroup');
+        if (statusGroup) statusGroup.style.display = 'none';
     }
 }
 
@@ -264,8 +364,14 @@ function editStallInPlace(s) {
   form.querySelector('select[name="status"]').value = s.status;
   form.querySelector('textarea[name="location_description"]').value = s.location_description;
   
-  form.querySelector('button[type="submit"]').textContent = '💾 Update Stall';
+  form.querySelector('button[type="submit"]').textContent = 'Update Stall';
   formatMoneyInput(form.querySelector('input[name="monthly_rate"]'));
+
+  form.classList.remove('is-create');
+  form.classList.add('is-edit');
+
+  const statusGroup = document.getElementById('statusFormGroup');
+  if (statusGroup) statusGroup.style.display = 'block';
 }
 
 function confirmDelete(e, form) {

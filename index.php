@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="POST">
       <div class="form-group">
         <label>Email Address</label>
-        <input type="email" name="email" required placeholder="admin@ajalfresco.com" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
+        <input type="email" name="email" required placeholder="" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" />
       </div>
 
       <div class="form-group">
@@ -79,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <button class="btn btn-primary" type="submit" style="width:100%; padding:12px; margin-top:10px;">Login Now</button>
     </form>
     
-    <div style="margin-top: 25px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
-        <small style="color:#888;">&copy; <?php echo date('Y'); ?> A&J Alfresco</small>
+    <div class="login-footer">
+        &copy; <?php echo date('Y'); ?> A&J Alfresco
     </div>
   </div>
 

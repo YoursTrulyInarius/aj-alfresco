@@ -37,6 +37,8 @@ if ($action === 'create') {
     $stmt->bind_param("iissddss", $tenant_id, $stall_id, $start_date, $end_date, $monthly_rent, $deposit_amount, $terms, $duration_type);
     
     if ($stmt->execute()) {
+        $new_id = $conn->insert_id;
+        $_SESSION['new_contract_id'] = $new_id;
         // Mark stall occupied
         $up = $conn->prepare("UPDATE stalls SET status='occupied' WHERE id=?");
         $up->bind_param("i", $stall_id);
@@ -53,18 +55,28 @@ if ($action === 'create') {
 
 if ($action === 'terminate') {
     $id = (int)($_POST['id'] ?? 0);
-    $stall_id = (int)($_POST['stall_id'] ?? 0);
-    $tenant_id = (int)($_POST['tenant_id'] ?? 0);
 
-    $stmt = $conn->prepare("UPDATE contracts SET status='terminated' WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
+    // Look up the stall_id associated with this contract
+    $stmt_find = $conn->prepare("SELECT stall_id FROM contracts WHERE id = ? LIMIT 1");
+    $stmt_find->bind_param("i", $id);
+    $stmt_find->execute();
+    $contract_info = $stmt_find->get_result()->fetch_assoc();
 
-    $up = $conn->prepare("UPDATE stalls SET status='available' WHERE id=?");
-    $up->bind_param("i", $stall_id);
-    $up->execute();
+    if ($contract_info) {
+        $stall_id = (int)$contract_info['stall_id'];
 
-    $_SESSION['flash'] = "Contract terminated. Stall set to available.";
+        $stmt = $conn->prepare("UPDATE contracts SET status='terminated' WHERE id=?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+
+        $up = $conn->prepare("UPDATE stalls SET status='available' WHERE id=?");
+        $up->bind_param("i", $stall_id);
+        $up->execute();
+
+        $_SESSION['flash'] = "Contract terminated. Stall set to available.";
+    } else {
+        $_SESSION['flash'] = "Error: Contract not found.";
+    }
     header("Location: contracts.php");
     exit();
 }

@@ -43,7 +43,7 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Payments - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -60,20 +60,24 @@ $unread = notifUnreadCount($adminId);
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Admin Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Admin Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
-      <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
-      <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
-      <li><a class="active" href="payments.php"><span class="icon">💰</span> Payments</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-      <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="tenants.php">Tenants</a></li>
+      <li><a href="stalls.php">Stalls</a></li>
+      <li><a href="contracts.php">Contracts</a></li>
+      <li><a class="active" href="payments.php">Payments</a></li>
+      <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="reports.php">Reports</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">
@@ -195,11 +199,11 @@ $unread = notifUnreadCount($adminId);
                   </td>
                   <td><?php echo date('M Y', strtotime($p['payment_for_month'] . '-01')); ?></td>
                   <td><?php echo formatMoney($p['amount']); ?></td>
-                   <td>
-                     <span class="status-badge paid" style="<?php echo ($p['payment_method'] == 'paymongo') ? 'background:#e83e8c;' : ''; ?>">
-                       <?php echo strtoupper($p['payment_method']); ?>
-                     </span>
-                   </td>
+                  <td>
+                    <span class="status-badge paid" style="<?php echo in_array(strtolower($p['payment_method']), ['paymongo', 'gcash', 'paymaya', 'maya', 'grab_pay']) ? 'background:#e83e8c; color:#fff;' : ''; ?>">
+                      <?php echo strtoupper($p['payment_method']); ?>
+                    </span>
+                  </td>
                   <td>
                     <small>
                       <?php echo date('M d, Y', strtotime($p['created_at'])); ?><br>

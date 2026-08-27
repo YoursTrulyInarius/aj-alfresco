@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-requireAdmin();
+
+// Check if user is logged in
+if (!isLoggedIn()) {
+    header("Location: ../index.php");
+    exit();
+}
 
 $id = (int)($_GET['id'] ?? 0);
 $stmt = $conn->prepare("
@@ -16,113 +21,169 @@ $stmt->bind_param("i", $id);
 $stmt->execute();
 $c = $stmt->get_result()->fetch_assoc();
 
-if (!$c) die("Contract not found.");
+if (!$c) {
+    die("Contract not found.");
+}
 
-$start = new DateTime($c['start_date']);
-$end = new DateTime($c['end_date']);
+// Security: Check if user is Admin OR is the specific Tenant who owns the contract
+if (!isAdmin()) {
+    if (!isTenant() || (int)$c['tenant_id'] !== (int)$_SESSION['user_id']) {
+        header("Location: ../index.php");
+        exit();
+    }
+}
+
+// Import FPDF
+require_once __DIR__ . '/../includes/fpdf/fpdf.php';
+
+class ContractPDF extends FPDF {
+    // Header
+    function Header() {
+        // Logo or Company Header
+        $this->SetFont('Arial', 'B', 16);
+        $this->SetTextColor(33, 33, 33);
+        $this->Cell(0, 10, 'A&J ALFRESCO', 0, 1, 'C');
+        
+        $this->SetFont('Arial', '', 10);
+        $this->SetTextColor(100, 100, 100);
+        $this->Cell(0, 5, 'Food Stall Rental Management System', 0, 1, 'C');
+        
+        // Draw line separator
+        $this->SetDrawColor(200, 200, 200);
+        $this->Line(15, 32, 195, 32);
+        $this->Ln(8);
+    }
+
+    // Footer
+    function Footer() {
+        $this->SetY(-20);
+        $this->SetFont('Arial', 'I', 8);
+        $this->SetTextColor(120, 120, 120);
+        
+        // Horizontal line
+        $this->SetDrawColor(230, 230, 230);
+        $this->Line(15, $this->GetY() - 2, 195, $this->GetY() - 2);
+        
+        // Page number
+        $this->Cell(0, 10, 'Page ' . $this->PageNo() . ' of {nb}', 0, 0, 'C');
+    }
+}
+
+// Helper to format currency for PDF (replaces Peso sign with PHP to avoid FPDF charset issues)
+function formatMoneyPDF($amount) {
+    return 'PHP ' . number_format((float)$amount, 2, '.', ',');
+}
+
+// Create instance of PDF
+$pdf = new ContractPDF('P', 'mm', 'A4');
+$pdf->AliasNbPages();
+$pdf->SetMargins(15, 15, 15);
+$pdf->AddPage();
+
+// Document Title
+$pdf->SetFont('Arial', 'B', 14);
+$pdf->SetTextColor(0, 0, 0);
+$pdf->Cell(0, 10, 'FOOD STALL RENTAL AGREEMENT', 0, 1, 'C');
+$pdf->Ln(5);
+
+// Parties Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '1. PARTIES TO THE AGREEMENT', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+
+$partiesText = "This Rental Agreement is made and entered into on " . date('F d, Y') . ", by and between:\n\n" .
+               "LANDLORD: A&J Alfresco, operating the stall facilities.\n\n" .
+               "TENANT: " . $c['tenant_name'] . " (" . $c['business_name'] . "), residing at " . ($c['tenant_address'] ? $c['tenant_address'] : 'N/A') . ".";
+$pdf->MultiCell(0, 5, $partiesText);
+$pdf->Ln(6);
+
+// Premises Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '2. PREMISES', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+$premisesText = "Landlord hereby leases to Tenant, and Tenant hereby leases from Landlord, the rental space designated as Stall " . $c['stall_number'] . " described as " . ($c['location_description'] ? $c['location_description'] : 'N/A') . ".";
+$pdf->MultiCell(0, 5, $premisesText);
+$pdf->Ln(6);
+
+// Term Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '3. LEASE TERM', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+$termText = "This Agreement shall be for a duration of " . $c['duration_type'] . ", commencing on " . formatDate($c['start_date']) . " and ending on " . formatDate($c['end_date']) . ".";
+$pdf->MultiCell(0, 5, $termText);
+$pdf->Ln(6);
+
+// Financials Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '4. RENT AND DEPOSIT TERMS', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+
+// Rent
+$pdf->SetFont('Arial', 'B', 10);
+$pdf->Cell(45, 6, 'Monthly Rent:', 0, 0);
+$pdf->SetFont('Arial', '', 10);
+$pdf->Cell(0, 6, formatMoneyPDF($c['monthly_rent']), 0, 1);
+
+// Deposit
+$pdf->SetFont('Arial', 'B', 10);
+$pdf->Cell(45, 6, 'Security Deposit:', 0, 0);
+$pdf->SetFont('Arial', '', 10);
+$pdf->Cell(0, 6, formatMoneyPDF($c['deposit_amount']), 0, 1);
+
+$pdf->Ln(3);
+$financialNotes = "The Tenant shall pay the security deposit upon signing this Agreement. In the event of early termination by the Tenant, the security deposit shall be forfeited as liquidated damages. Rent is due and payable on or before the due date of each month, regardless of stall usage.";
+$pdf->MultiCell(0, 5, $financialNotes);
+$pdf->Ln(6);
+
+// Rules Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '5. EARLY TERMINATION POLICIES', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+$rulesText = "If the Tenant vacates the stall prior to the expiration of the lease term, the following rules apply:\n" .
+            "- Forfeiture of Deposit: The security deposit will be retained by the Landlord.\n" .
+            "- Liability for Remaining Rent: The Tenant remains liable for rent until the end of the term, or until the Landlord secures a new tenant.\n" .
+            "- Pre-Termination Option: The Tenant may elect to terminate early by paying an additional pre-termination fee equivalent to one (1) month's rent.";
+$pdf->MultiCell(0, 5, $rulesText);
+$pdf->Ln(6);
+
+// Landlord Termination
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '6. TERMINATION BY LANDLORD', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+$landlordTermText = "The Landlord reserves the right to terminate this lease agreement immediately if the Tenant fails to pay rent for two (2) consecutive months, or if the Tenant violates health, safety, or operational regulations.";
+$pdf->MultiCell(0, 5, $landlordTermText);
+$pdf->Ln(6);
+
+// Special Terms Section
+$pdf->SetFont('Arial', 'B', 11);
+$pdf->Cell(0, 6, '7. SPECIAL TERMS & CONDITIONS', 0, 1, 'L');
+$pdf->SetFont('Arial', '', 10);
+$specialTerms = $c['terms'] ? trim($c['terms']) : 'No special terms or conditions specified.';
+$pdf->MultiCell(0, 5, $specialTerms);
+$pdf->Ln(15);
+
+// Signature Section (with Page Break check if needed)
+if ($pdf->GetY() > 240) {
+    $pdf->AddPage();
+}
+
+$pdf->SetFont('Arial', 'B', 10);
+$pdf->Cell(90, 6, 'LANDLORD SIGNATURE', 0, 0, 'L');
+$pdf->Cell(90, 6, 'TENANT SIGNATURE', 0, 1, 'L');
+$pdf->Ln(15); // space for actual signature
+
+$pdf->SetFont('Arial', '', 10);
+$pdf->Cell(90, 5, '___________________________', 0, 0, 'L');
+$pdf->Cell(90, 5, '___________________________', 0, 1, 'L');
+
+$pdf->SetFont('Arial', 'B', 9);
+$pdf->Cell(90, 5, 'A&J Alfresco Representative', 0, 0, 'L');
+$pdf->Cell(90, 5, $c['tenant_name'], 0, 1, 'L');
+
+$pdf->SetFont('Arial', '', 9);
+$pdf->Cell(90, 4, 'Date: _________________', 0, 0, 'L');
+$pdf->Cell(90, 4, 'Date: _________________', 0, 1, 'L');
+
+// Output PDF to browser
+$pdf->Output('I', 'Contract_Stall_' . $c['stall_number'] . '.pdf');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Print Contract - <?php echo htmlspecialchars($c['tenant_name']); ?></title>
-    <style>
-        body { font-family: serif; line-height: 1.6; color: #333; padding: 40px; }
-        .contract-box { max-width: 800px; margin: auto; border: 1px solid #ccc; padding: 50px; background: #fff; }
-        h1 { text-align: center; text-transform: uppercase; font-size: 22px; margin-bottom: 30px; }
-        .section { margin-bottom: 20px; }
-        .section-title { font-weight: bold; text-decoration: underline; margin-bottom: 5px; display: block; }
-        .sig-row { display: flex; justify-content: space-between; margin-top: 60px; }
-        .sig-col { width: 45%; border-top: 1px solid #000; text-align: center; padding-top: 5px; }
-        @media print {
-            body { padding: 0; }
-            .contract-box { border: none; width: 100%; max-width: 100%; }
-            .btn-print, .no-print, .btn-back { display: none !important; }
-        }
-        .btn-print, .btn-back {
-            display: inline-block; width: 180px; margin: 5px; padding: 12px;
-            background: #ffb6c1; border: none; color: #fff; font-weight: bold;
-            cursor: pointer; border-radius: 8px; text-align: center; text-decoration: none;
-            transition: .2s;
-        }
-        .btn-back { background: #666; }
-        .btn-back:hover { background: #444; }
-        .btn-print:hover { background: #ff91a4; }
-    </style>
-</head>
-<body>
-
-    <div class="no-print" style="margin-bottom: 20px; text-align: center;">
-        <a href="contracts.php" class="btn-back">Go Back</a>
-        <button class="btn-print" onclick="window.print()" style="display: inline-block;">Print Contract</button>
-    </div>
-
-    <div class="contract-box">
-        <h1>Food Stall Rental Agreement</h1>
-
-        <div class="section">
-            <p><strong>Between:</strong><br>
-            <strong>Landlord:</strong> A&J Alfresco<br>
-            <strong>Tenant:</strong> <?php echo htmlspecialchars($c['tenant_name']); ?> (<?php echo htmlspecialchars($c['business_name']); ?>)</p>
-        </div>
-
-        <div class="section">
-            <p><strong>Premises:</strong> Stall <?php echo htmlspecialchars($c['stall_number']); ?> - <?php echo htmlspecialchars($c['location_description']); ?></p>
-            <p><strong>Term:</strong> <?php echo htmlspecialchars($c['duration_type']); ?>, commencing on <?php echo formatDate($c['start_date']); ?> and ending on <?php echo formatDate($c['end_date']); ?></p>
-        </div>
-
-        <div class="section">
-            <span class="section-title">1. Security Deposit</span>
-            <p>Tenant shall pay a security deposit equivalent to <?php echo formatMoney($c['deposit_amount']); ?> upon signing this Agreement.</p>
-            <p>In the event of early termination by the Tenant, the security deposit shall be forfeited as liquidated damages.</p>
-        </div>
-
-        <div class="section">
-            <span class="section-title">2. Rent Payment</span>
-            <p>Tenant agrees to pay monthly rent of <?php echo formatMoney($c['monthly_rent']); ?> on or before the due date of each month.</p>
-            <p>Rent is payable regardless of stall usage unless otherwise terminated under this Agreement.</p>
-        </div>
-
-        <div class="section">
-            <span class="section-title">3. Early Termination</span>
-            <p>If the Tenant vacates the stall before the end of the agreed term:</p>
-            <ul>
-                <li><strong>Forfeiture of Security Deposit:</strong> The deposit shall be retained by the Landlord.</li>
-                <li><strong>Liability for Remaining Rent:</strong> Tenant remains liable for the balance of rent until the end of the contract term.</li>
-                <li><strong>Mitigation:</strong> If the Landlord secures a new tenant, the original Tenant’s liability ceases from the date the new tenant begins paying rent.</li>
-                <li><strong>Pre-Termination Fee:</strong> Tenant may terminate early by paying an additional fee equivalent to one (1) month’s rent.</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <span class="section-title">4. Termination by Landlord</span>
-            <p>The Landlord may terminate this Agreement if:</p>
-            <ul>
-                <li>Tenant fails to pay rent for two consecutive months.</li>
-                <li>Tenant violates stall rules, health regulations, or engages in unlawful activity.</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <span class="section-title">5. System Records</span>
-            <p>Upon termination, the contract status shall be marked as “Terminated” in the A&J Alfresco system. Stall shall be made available for re-rental.</p>
-        </div>
-
-        <div class="section">
-            <span class="section-title">6. Miscellaneous</span>
-            <p>This Agreement constitutes the entire understanding between the parties. Amendments must be in writing and signed by both parties.</p>
-        </div>
-
-        <div class="sig-row">
-            <div class="sig-col">
-                Landlord: A&J Alfresco
-            </div>
-            <div class="sig-col">
-                Tenant: <?php echo htmlspecialchars($c['tenant_name']); ?>
-            </div>
-        </div>
-        <p style="text-align: center; margin-top: 30px;">Date: <?php echo date('M d, Y'); ?></p>
-    </div>
-
-</body>
-</html>

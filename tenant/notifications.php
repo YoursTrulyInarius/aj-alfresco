@@ -7,12 +7,21 @@ $initial = strtoupper(substr($_SESSION['full_name'] ?? 'T', 0, 1));
 
 $unread = notifUnreadCount($tenantId);
 
-$stmt = $conn->prepare("
+$filterType = sanitize($_GET['filter_type'] ?? '');
+
+$query = "
   SELECT *
   FROM notifications
-  WHERE user_id=?
-  ORDER BY id DESC
-");
+  WHERE user_id = ?
+";
+if ($filterType === 'payment') {
+    $query .= " AND type IN ('payment', 'due_date')";
+} elseif ($filterType === 'contract') {
+    $query .= " AND type = 'contract_expiry'";
+}
+$query .= " ORDER BY id DESC";
+
+$stmt = $conn->prepare($query);
 $stmt->bind_param("i", $tenantId);
 $stmt->execute();
 $notifs = $stmt->get_result();
@@ -67,12 +76,22 @@ $notifs = $stmt->get_result();
 
     <div class="content">
       <div class="card">
-        <div class="card-header">
+        <div class="card-header" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
           <h2>All Notifications</h2>
-          <form method="POST" action="process_notifications.php" style="margin:0">
-            <input type="hidden" name="action" value="mark_all_read">
-            <button class="btn btn-warning btn-sm" type="submit">Mark All as Read</button>
-          </form>
+          <div style="display:flex; gap:15px; align-items:center;">
+            <form method="GET" style="margin:0; display:flex; align-items:center; gap:8px;">
+              <label for="filter_type" style="font-size:13.5px; font-weight:600; color:#475569;">Filter:</label>
+              <select name="filter_type" id="filter_type" onchange="this.form.submit()" style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; font-size:13.5px;">
+                <option value="">All Notifications</option>
+                <option value="payment" <?php echo $filterType === 'payment' ? 'selected' : ''; ?>>Payment Alerts</option>
+                <option value="contract" <?php echo $filterType === 'contract' ? 'selected' : ''; ?>>Contract Alerts</option>
+              </select>
+            </form>
+            <form method="POST" action="process_notifications.php" style="margin:0">
+              <input type="hidden" name="action" value="mark_all_read">
+              <button class="btn btn-warning btn-sm" type="submit">Mark All as Read</button>
+            </form>
+          </div>
         </div>
 
         <div class="card-body table-responsive">
@@ -97,11 +116,24 @@ $notifs = $stmt->get_result();
                   </td>
                   <td><?php echo htmlspecialchars($n['type']); ?></td>
                   <td>
-                    <?php if ((int)$n['is_read'] === 1): ?>
-                      <span class="status-badge active">read</span>
-                    <?php else: ?>
-                      <span class="status-badge pending">unread</span>
-                    <?php endif; ?>
+                    <?php 
+                    $type = $n['type'];
+                    $isRead = (int)$n['is_read'] === 1;
+                    
+                    if ($type === 'contract_expiry') {
+                        $badgeClass = 'overdue';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    } elseif ($type === 'payment' || $type === 'due_date') {
+                        $badgeClass = $isRead ? 'paid' : 'pending';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    } else {
+                        $badgeClass = $isRead ? 'active' : 'pending';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    }
+                    ?>
+                    <span class="status-badge <?php echo $badgeClass; ?>">
+                      <?php echo $labelText; ?>
+                    </span>
                   </td>
                   <td><?php echo formatDate($n['created_at']); ?></td>
                   <td>

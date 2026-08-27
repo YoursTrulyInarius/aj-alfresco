@@ -6,6 +6,10 @@ CREATE TABLE users (
   full_name VARCHAR(150) NOT NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
   phone VARCHAR(30),
+  secondary_phone VARCHAR(30),
+  business_name VARCHAR(150),
+  business_type VARCHAR(100),
+  address TEXT,
   password VARCHAR(255) NOT NULL,
   role ENUM('admin','tenant') NOT NULL DEFAULT 'tenant',
   status ENUM('active','inactive') NOT NULL DEFAULT 'active',
@@ -32,6 +36,7 @@ CREATE TABLE contracts (
   monthly_rent DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   deposit_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   terms TEXT,
+  duration_type VARCHAR(50) NOT NULL DEFAULT '1 year',
   status ENUM('active','expired','pending_renewal','terminated') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_contracts_tenant FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -72,14 +77,6 @@ CREATE TABLE notifications (
 -- Password: admin123
 INSERT INTO users(full_name,email,phone,password,role,status) VALUES
 ('A&J Alfresco Admin','admin@ajalfresco.com','09171234567',
-'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+'$2y$10$XphWBZgND/N2tGi6ItH26.4CqKsvcWBcrYBgMbNoUCSDxDly2lWSG',
 'admin','active');
 
--- Sample stalls
-INSERT INTO stalls(stall_number,stall_name,location_description,monthly_rate,size_sqm,status) VALUES
-('S-001','Stall A1','Ground Floor - Left Wing',3500.00,12.00,'available'),
-('S-002','Stall A2','Ground Floor - Left Wing',3500.00,12.00,'available'),
-('S-003','Stall B1','Ground Floor - Right Wing',4000.00,15.00,'available'),
-('S-004','Stall B2','Ground Floor - Right Wing',4000.00,15.00,'available'),
-('S-005','Stall C1','Ground Floor - Center',5000.00,20.00,'available'),
-('S-006','Stall C2','Ground Floor - Center',5000.00,20.00,'available');

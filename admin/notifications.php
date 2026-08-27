@@ -5,14 +5,22 @@ requireAdmin();
 $adminId = (int)$_SESSION['user_id'];
 $unread = notifUnreadCount($adminId);
 
-$stmt = $conn->prepare("
-  SELECT n.*, u.full_name as sender_name
+$filterType = sanitize($_GET['filter_type'] ?? '');
+
+$query = "
+  SELECT n.*
   FROM notifications n
-  LEFT JOIN users u ON u.id = ? -- This is just to satisfy the structure if needed, but notifications are usually system-gen
-  WHERE n.user_id=?
-  ORDER BY n.id DESC
-");
-$stmt->bind_param("ii", $adminId, $adminId);
+  WHERE n.user_id = ?
+";
+if ($filterType === 'payment') {
+    $query .= " AND n.type IN ('payment', 'due_date')";
+} elseif ($filterType === 'contract') {
+    $query .= " AND n.type = 'contract_expiry'";
+}
+$query .= " ORDER BY n.id DESC";
+
+$stmt = $conn->prepare($query);
+$stmt->bind_param("i", $adminId);
 $stmt->execute();
 $notifs = $stmt->get_result();
 ?>
@@ -22,7 +30,7 @@ $notifs = $stmt->get_result();
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Notifications - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .notif-msg { cursor: pointer; transition: 0.2s; position: relative; }
@@ -33,20 +41,24 @@ $notifs = $stmt->get_result();
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Admin Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Admin Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
-      <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
-      <li><a href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
-      <li><a class="active" href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-      <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="tenants.php">Tenants</a></li>
+      <li><a href="stalls.php">Stalls</a></li>
+      <li><a href="contracts.php">Contracts</a></li>
+      <li><a href="payments.php">Payments</a></li>
+      <li><a class="active" href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="reports.php">Reports</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">
@@ -64,12 +76,22 @@ $notifs = $stmt->get_result();
 
     <div class="content">
       <div class="card">
-        <div class="card-header" style="justify-content: space-between; align-items: center;">
+        <div class="card-header" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
           <h2>Admin Alerts</h2>
-          <form method="POST" action="process_notifications.php" style="margin:0">
-            <input type="hidden" name="action" value="mark_all_read">
-            <button class="btn btn-warning btn-sm" type="submit">Mark All Read</button>
-          </form>
+          <div style="display:flex; gap:15px; align-items:center;">
+            <form method="GET" style="margin:0; display:flex; align-items:center; gap:8px;">
+              <label for="filter_type" style="font-size:13.5px; font-weight:600; color:#475569;">Filter:</label>
+              <select name="filter_type" id="filter_type" onchange="this.form.submit()" style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; font-size:13.5px;">
+                <option value="">All Notifications</option>
+                <option value="payment" <?php echo $filterType === 'payment' ? 'selected' : ''; ?>>Payment Alerts</option>
+                <option value="contract" <?php echo $filterType === 'contract' ? 'selected' : ''; ?>>Contract Alerts</option>
+              </select>
+            </form>
+            <form method="POST" action="process_notifications.php" style="margin:0">
+              <input type="hidden" name="action" value="mark_all_read">
+              <button class="btn btn-warning btn-sm" type="submit">Mark All Read</button>
+            </form>
+          </div>
         </div>
 
         <div class="card-body table-responsive">
@@ -94,11 +116,24 @@ $notifs = $stmt->get_result();
                   </td>
                   <td><span class="status-badge <?php echo htmlspecialchars($n['type']); ?>"><?php echo htmlspecialchars($n['type']); ?></span></td>
                   <td>
-                    <?php if ((int)$n['is_read'] === 1): ?>
-                      <span class="status-badge paid">read</span>
-                    <?php else: ?>
-                      <span class="status-badge pending">unread</span>
-                    <?php endif; ?>
+                    <?php 
+                    $type = $n['type'];
+                    $isRead = (int)$n['is_read'] === 1;
+                    
+                    if ($type === 'contract_expiry') {
+                        $badgeClass = 'overdue';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    } elseif ($type === 'payment' || $type === 'due_date') {
+                        $badgeClass = $isRead ? 'paid' : 'pending';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    } else {
+                        $badgeClass = $isRead ? 'active' : 'pending';
+                        $labelText = $isRead ? 'read' : 'unread';
+                    }
+                    ?>
+                    <span class="status-badge <?php echo $badgeClass; ?>">
+                      <?php echo $labelText; ?>
+                    </span>
                   </td>
                   <td><?php echo formatDate($n['created_at']); ?></td>
                   <td>

@@ -105,17 +105,6 @@ $unread = notifUnreadCount($tenantId);
   </main>
 </div>
 
-<!-- OFFICIAL PAYMONGO MODAL -->
-<div id="paymongo-modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <strong>Secure PayMongo Checkout</strong>
-            <button class="btn btn-secondary btn-sm" onclick="closeModal()" style="width:auto;">Close</button>
-        </div>
-        <iframe id="checkout-iframe" src=""></iframe>
-    </div>
-</div>
-
 <script>
 let checkInterval;
 
@@ -135,9 +124,28 @@ async function initiatePayment() {
         const data = await response.json();
 
         if (data.success) {
-            Swal.close();
-            document.getElementById('checkout-iframe').src = data.checkout_url;
-            document.getElementById('paymongo-modal').style.display = 'flex';
+            // Open secure PayMongo page in a new tab/popup
+            window.open(data.checkout_url, '_blank');
+
+            // Show waiting screen in original tab
+            Swal.fire({
+                title: 'Waiting for Payment...',
+                html: 'Please complete your GCash/Maya payment in the new tab.<br><br><span style="color:#64748b; font-size: 0.9rem;">This window will automatically redirect once your payment is completed.</span>',
+                icon: 'info',
+                allowOutsideClick: false,
+                showCancelButton: true,
+                cancelButtonText: 'Cancel & Close',
+                didOpen: () => {
+                    Swal.showLoading(Swal.getCancelButton());
+                }
+            }).then((result) => {
+                // If user clicks "Cancel & Close", stop polling
+                if (result.dismiss === Swal.DismissReason.cancel) {
+                    clearInterval(checkInterval);
+                }
+            });
+
+            // Start checking for status update
             startStatusCheck(data.session_id);
         } else {
             Swal.fire({ icon: 'error', title: 'Payment Error', text: data.message || 'Could not create checkout session.' });
@@ -148,34 +156,18 @@ async function initiatePayment() {
 }
 
 function startStatusCheck(sessionId) {
+    clearInterval(checkInterval);
     checkInterval = setInterval(async () => {
         try {
             const resp = await fetch(`check_payment_status.php?session_id=${sessionId}`);
             const result = await resp.json();
             if (result.status === 'paid') {
                 clearInterval(checkInterval);
+                Swal.close();
                 window.location.href = `payment_success.php?session_id=${sessionId}&month=<?php echo date('Y-m'); ?>`;
             }
         } catch (e) {}
     }, 3000);
-}
-
-function closeModal() {
-    Swal.fire({
-        title: 'Cancel Payment?',
-        text: "Your progress on the checkout page will be lost.",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#aaa',
-        confirmButtonText: 'Yes, cancel it'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            document.getElementById('paymongo-modal').style.display = 'none';
-            document.getElementById('checkout-iframe').src = '';
-            clearInterval(checkInterval);
-        }
-    });
 }
 
 function toggleSidebar() {

@@ -85,12 +85,13 @@ $unread = notifUnreadCount($tenantId);
             </div>
             <div><b>Terms:</b> <?php echo nl2br(htmlspecialchars($contract['terms'] ?? '')); ?></div>
 
-            <div style="margin-top:16px;">
+            <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <a class="btn btn-primary" href="../admin/print_contract.php?id=<?php echo (int)$contract['id']; ?>" target="_blank" style="text-decoration:none; display:inline-block; padding:10px 20px;">📄 Download PDF Contract</a>
               <?php if ($contract['status'] === 'active'): ?>
-                <form method="POST" action="process_contract.php" onsubmit="return confirm('Send renewal request to admin?');">
+                <form method="POST" action="process_contract.php" onsubmit="return confirm('Send renewal request to admin?');" style="margin:0;">
                   <input type="hidden" name="action" value="request_renewal">
                   <input type="hidden" name="id" value="<?php echo (int)$contract['id']; ?>">
-                  <button class="btn btn-primary" type="submit">Request Renewal</button>
+                  <button class="btn btn-primary" type="submit" style="padding:10px 20px;">Request Renewal</button>
                 </form>
               <?php else: ?>
                 <small>Renewal request is only available for active contracts.</small>

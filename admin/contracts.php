@@ -35,7 +35,7 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contracts - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=<?php echo time(); ?>"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -50,20 +50,24 @@ $unread = notifUnreadCount($adminId);
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Admin Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Admin Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="tenants.php"><span class="icon">👥</span> Tenants</a></li>
-      <li><a href="stalls.php"><span class="icon">🏬</span> Stalls</a></li>
-      <li><a class="active" href="contracts.php"><span class="icon">📄</span> Contracts</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payments</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-      <li><a href="reports.php"><span class="icon">📈</span> Reports</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="tenants.php">Tenants</a></li>
+      <li><a href="stalls.php">Stalls</a></li>
+      <li><a class="active" href="contracts.php">Contracts</a></li>
+      <li><a href="payments.php">Payments</a></li>
+      <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+      <li><a href="reports.php">Reports</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">
@@ -85,7 +89,7 @@ $unread = notifUnreadCount($adminId);
           <h2>Create New Contract</h2>
         </div>
         <div class="card-body">
-          <form method="POST" action="process_contract.php" id="contractForm" onsubmit="return validateContract()">
+          <form method="POST" action="process_contract.php" id="contractForm" onsubmit="return handleContractSubmit(event)">
             <input type="hidden" name="action" value="create">
 
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
@@ -115,7 +119,7 @@ $unread = notifUnreadCount($adminId);
 
               <div class="form-group">
                 <label>Monthly Rent (PHP) *</label>
-                <input type="number" name="monthly_rent" id="rentInput" step="0.01" required placeholder="0.00">
+                <input type="number" name="monthly_rent" step="0.01" required id="rentInput" placeholder="0.00">
               </div>
 
               <div class="form-group">
@@ -124,13 +128,23 @@ $unread = notifUnreadCount($adminId);
               </div>
 
               <div class="form-group">
+                <label>Duration Type *</label>
+                <select name="duration_type" id="durationType" required onchange="updateEndDate()">
+                  <option value="6 months">6 Months</option>
+                  <option value="1 year" selected>1 Year</option>
+                  <option value="2 years">2 Years</option>
+                  <option value="3 years">3 Years</option>
+                </select>
+              </div>
+
+              <div class="form-group">
                 <label>Start Date *</label>
-                <input type="date" name="start_date" required value="<?php echo date('Y-m-d'); ?>">
+                <input type="date" name="start_date" id="startDate" required value="<?php echo date('Y-m-d'); ?>" onchange="updateEndDate()">
               </div>
 
               <div class="form-group">
                 <label>End Date *</label>
-                <input type="date" name="end_date" required value="<?php echo date('Y-m-d', strtotime('+1 year')); ?>">
+                <input type="date" name="end_date" id="endDate" required value="<?php echo date('Y-m-d', strtotime('+1 year')); ?>">
               </div>
             </div>
 
@@ -189,12 +203,12 @@ $unread = notifUnreadCount($adminId);
                     </span>
                   </td>
                   <td>
-                    <div style="display:flex; gap:8px;">
-                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewContract(<?php echo htmlspecialchars(json_encode($c)); ?>)' title="View Details">👁️</a>
-                      <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')" style="display:inline-block; margin:0;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <a class="btn btn-primary btn-sm btn-action" href="print_contract.php?id=<?php echo (int)$c['id']; ?>" target="_blank" title="View PDF"><i class="fa-solid fa-eye"></i></a>
+                      <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')" style="display:inline-block; margin:0; line-height: 0;">
                         <input type="hidden" name="action" value="terminate">
                         <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit" title="End Lease">🗑️</button>
+                        <button class="btn btn-danger btn-sm btn-action" type="submit" title="End Lease"><i class="fa-solid fa-trash"></i></button>
                       </form>
                     </div>
                   </td>
@@ -255,13 +269,57 @@ function confirmAction(e, form, type) {
   });
 }
 
-function validateContract() {
+function handleContractSubmit(e) {
+    e.preventDefault();
     const rent = document.getElementById('rentInput').value;
-    if (rent <= 0) {
+    if (!rent || parseFloat(rent) <= 0) {
         Swal.fire({ icon: 'error', title: 'Invalid Rent', text: 'Monthly rent must be greater than zero.' });
         return false;
     }
-    return true;
+    
+    Swal.fire({
+        title: 'Are you sure?',
+        text: 'Are you sure you want to create this contract?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#ff2d55',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, create it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('contractForm').submit();
+        }
+    });
+    return false;
+}
+
+function updateEndDate() {
+    const startDateVal = document.getElementById('startDate').value;
+    if (!startDateVal) return;
+    
+    const startDate = new Date(startDateVal);
+    const duration = document.getElementById('durationType').value;
+    
+    let targetDate = new Date(startDate);
+    if (duration === '1 year') {
+        targetDate.setFullYear(startDate.getFullYear() + 1);
+    } else if (duration === '2 years') {
+        targetDate.setFullYear(startDate.getFullYear() + 2);
+    } else if (duration === '3 years') {
+        targetDate.setFullYear(startDate.getFullYear() + 3);
+    } else if (duration === '6 months') {
+        targetDate.setMonth(startDate.getMonth() + 6);
+    }
+    
+    const yyyy = targetDate.getFullYear();
+    let mm = targetDate.getMonth() + 1;
+    let dd = targetDate.getDate();
+    
+    if (mm < 10) mm = '0' + mm;
+    if (dd < 10) dd = '0' + dd;
+    
+    document.getElementById('endDate').value = yyyy + '-' + mm + '-' + dd;
 }
 
 $(document).ready(function() {
@@ -273,13 +331,34 @@ $(document).ready(function() {
 });
 
 // --- SWEETALERT FLASH HANDLER ---
+<?php 
+$newContractId = $_SESSION['new_contract_id'] ?? 0;
+unset($_SESSION['new_contract_id']);
+?>
 <?php if ($flash): ?>
-  Swal.fire({
-    icon: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "error" : "success"; ?>',
-    title: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "Oops!" : "Perfect!"; ?>',
-    text: '<?php echo htmlspecialchars($flash); ?>',
-    confirmButtonColor: '#007bff'
-  });
+  <?php if ($newContractId > 0 && strpos(strtolower($flash), "error") === false): ?>
+    Swal.fire({
+      icon: 'success',
+      title: 'Contract Created!',
+      text: '<?php echo htmlspecialchars($flash); ?>',
+      showCancelButton: true,
+      confirmButtonColor: '#28a745',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'View PDF',
+      cancelButtonText: 'Close'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.open('print_contract.php?id=<?php echo $newContractId; ?>', '_blank');
+      }
+    });
+  <?php else: ?>
+    Swal.fire({
+      icon: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "error" : "success"; ?>',
+      title: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "Oops!" : "Perfect!"; ?>',
+      text: '<?php echo htmlspecialchars($flash); ?>',
+      confirmButtonColor: '#007bff'
+    });
+  <?php endif; ?>
 <?php endif; ?>
 </script>
 </body>
