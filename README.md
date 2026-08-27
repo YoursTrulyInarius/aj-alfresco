@@ -1,73 +1,236 @@
-# 🏪 A&J Alfresco — Rental Management System
-**A State-of-the-Art, Mobile-Responsive Rental & Utility Management Solution**
+# A&J Alfresco Rental Management System
 
----
+## Short description
 
-## 💎 Project Overview
-A&J Alfresco is a professional Web-Based Rental Management System designed to transition manual, paper-based food park administration into a digital, real-time ecosystem. The platform specializes in **Stall Management**, **Automated Tenant Billing**, and **API-Integrated Digital Payments**.
+A&J Alfresco is a web-based rental management system for food-park operations. It helps administrators manage stalls, tenants, contracts, payments, receipts, reports, and notifications, while tenants can view their rental information and pay online.
 
-## 🚀 Tech Stack
-*   **Backend**: PHP 8.x (Custom Architecture)
-*   **Database**: MySQL (XAMPP Environment)
-*   **Frontend**: Vanilla HTML5 / Modern Javascript
-*   **Styling**: Premium Mobile-First CSS (Zero-Gap Fluid Layout)
-*   **UI Components**: SweetAlert2 (Modals), Select2 (Smart Search), Google Fonts (Outfit/Inter)
-*   **Payments**: Official PayMongo Checkout API (E-Wallets)
+## Features
 
----
+### Admin portal
 
-## 🌊 Process Flows (Step-by-Step)
+- Dashboard counts for available stalls, occupied stalls, active contracts, and payment activity
+- Create and update stalls with a number, name, location, monthly rate, size, and status
+- Register tenants and manage their account status and business details
+- Create contracts that connect an active tenant to an available stall
+- Track contract dates, rent, deposits, terms, duration, and lifecycle status
+- Record cash or manually verified payments
+- View payment history, search records, and print receipts
+- View payment reports
+- Filter and mark notifications as read
+- Force-send rent-due and contract-expiry email reminders from `admin/test_reminders.php`
 
-### 1. 🏢 Stall & Asset Creation
-*   **Process**: Admin navigates to **Stalls**.
-*   **Flow**: Admin creates a "Stall Entity" (e.g., S-001). This status is set to `vacant` by default.
-*   **Logic**: A stall is the "Anchor" of the system. Without a stall, a contract cannot be generated.
+### Tenant portal
 
-### 2. 👥 Tenant Registration
-*   **Process**: Admin navigates to **Tenants**.
-*   **Flow**: Admin fills out the **Registration Form** (Interactive Modal).
-*   **Logic**: System creates a unique `User ID` with `role='tenant'`. The tenant's security deposit is managed via the subsequent contract.
+- Secure login with separate admin and tenant roles
+- Tenant dashboard with contract, payment, and reminder summaries
+- View contract details and submit a renewal request for an active contract
+- Start a PayMongo Checkout payment for the current rental contract
+- View payment history and print individual receipts
+- Filter notifications by payment or contract expiry and mark them as read
+- Change the account password
 
-### 3. 📄 Contract Implementation
-*   **Process**: Admin navigates to **Contracts**.
-*   **Flow**: Admin links a **Tenant** to a **Vacant Stall**.
-*   **Logic**: Admin defines the **Monthly Rent**, **Security Deposit**, and **Start/End Dates**. Once saved, the Stall status automatically flips to `occupied`.
+### Notifications and reminders
 
-### 4. 💰 The Payment Lifecycle (Official PayMongo)
-*   **Process**: Tenant logs into their Dashboard.
-*   **Flow**: 
-    1.  Tenant clicks **"Make Payment"**.
-    2.  System initializes a **PayMongo Checkout Session** via PHP.
-    3.  Tenant is redirected to the **Official PayMongo UI** (GCash, PayMaya, GrabPay).
-    4.  Upon authorization, the tenant is sent to a **Success Page**.
-    5.  The system captures the `payment_id`, creates a **Digital Receipt**, and updates the payment ledger in real-time.
+Loading the tenant dashboard creates applicable due-date and contract-expiry notifications. Notification types are stored as `due_date`, `contract_expiry`, `payment`, or `general`. The admin reminder test page can send rent reminders for 7, 3, or 1 day before the due date and contract-expiry reminders for 90, 60, or 30 days before expiry.
 
-### 5. 🔔 Automated Notifications
-*   **Process**: Background polling/Dashboard load.
-*   **Flow**: The system monitors contract end-dates and monthly bill dates.
-*   **Logic**: Tenants receive "Real-time Reminders" on their dashboard (vibrant SweetAlerts) for upcoming dues or expiring contracts.
+## Technology stack
 
----
+- PHP 8.x
+- MySQL with InnoDB and `utf8mb4`
+- Apache and PHP through XAMPP
+- Server-rendered HTML, CSS, and JavaScript
+- PayMongo Checkout API
+- PHPMailer through the included Composer vendor directory
+- FPDF for generated contract documents
+- SweetAlert2 and Font Awesome loaded from CDNs
 
-## 🛠️ Core Functions & Code Structure
-*   **`includes/functions.php`**: The "Brain" of the system. Handles database connection, sanitation, and global logic.
-*   **`admin/`**: High-priority management directory for Stalls, Tenants, and Financial Reports.
-*   **`tenant/`**: Client-facing portal for viewing contracts and initiating digital payments.
-*   **`assets/css/style.css`**: The definitive **Mobile-First CSS**. Uses a Margin-Push vs. Overlay-Drawer logic for 100% responsiveness on all devices.
+## Requirements
 
----
+- Windows with XAMPP, or an equivalent Apache/PHP/MySQL environment
+- PHP extensions used by the application, including `mysqli` and `curl`
+- A PayMongo account and API keys for online payments
+- A Gmail account with an app password, or another SMTP-compatible mail account
 
-## 📈 Future Enhancements (Roadmap)
-For future development phases, the following high-priority features are scheduled:
+## Step-by-step setup
 
-1.  **📏 Stall Specification Gallery**:
-    *   Add **Squaremeter (sqm)** fields for every stall for precise space management.
-    *   Implement an **Image Gallery** for each stall, allowing potential tenants to view the actual space online before visiting.
-2.  **📱 Communication Triggers**:
-    *   **SMTP Email**: Automatic PDF receipts sent to tenant emails after every payment.
-    *   **SMS Integration**: Real-time due date reminders sent directly to tenant phone numbers.
-3.  **💳 Expanded Payment Rails**:
-    *   Implementation of **PayMongo Credit/Debit Card** processing alongside existing E-Wallets.
+### 1. Clone the repository
 
----
-*Created with ❤️ for A&J Alfresco Rental Management.*
+Open PowerShell or Git Bash and clone the project into the XAMPP web root:
+
+```powershell
+cd C:\xampp\htdocs
+git clone https://github.com/YoursTrulyInarius/aj-alfresco.git
+cd aj-alfresco
+```
+
+If the project is already downloaded, open its existing directory instead of cloning it again.
+
+### 2. Start XAMPP
+
+Open the XAMPP Control Panel and start Apache and MySQL. The application expects both services to be running.
+
+### 3. Create the database
+
+1. Open `http://localhost/phpmyadmin/`.
+2. Select the Import tab.
+3. Choose `sql/database.sql` from the project directory.
+4. Run the import.
+
+The script creates the `aj_alfresco_rms` database, its tables, and the default administrator account. The same SQL file can also be run with the MySQL command line.
+
+### 4. Configure the database connection
+
+Open `config/database.php` and confirm the local connection values:
+
+```php
+$host = 'localhost';
+$user = 'root';
+$pass = '';
+$db   = 'aj_alfresco_rms';
+```
+
+Use the username and password configured by your MySQL installation if they differ from the XAMPP defaults.
+
+### 5. Configure PayMongo
+
+Open `config/paymongo.php` and replace the placeholders:
+
+```php
+define('PAYMONGO_SECRET_KEY', 'YOUR_PAYMONGO_SECRET_KEY');
+define('PAYMONGO_PUBLIC_KEY', 'YOUR_PAYMONGO_PUBLIC_KEY');
+```
+
+Get these values from the PayMongo Dashboard under Developers or API keys. Use test keys during development. The application builds its success and cancel URLs from the current request host, so local testing uses the `localhost` address automatically.
+
+Do not commit real PayMongo keys. Keep this file private or use a deployment-specific configuration file.
+
+### 6. Configure SMTP email
+
+Open `config/smtp.php` and replace the placeholders:
+
+```php
+define('SMTP_HOST',     'smtp.gmail.com');
+define('SMTP_PORT',     587);
+define('SMTP_USERNAME', 'your_email@gmail.com');
+define('SMTP_PASSWORD', 'your_app_password_here');
+define('SMTP_FROM',     'your_email@gmail.com');
+define('SMTP_FROM_NAME','A&J Alfresco');
+```
+
+For Gmail, enable two-step verification and create an app password. Use the app password in `SMTP_PASSWORD`, not the normal Gmail password. Confirm that the sender address matches the configured SMTP account.
+
+Do not commit real SMTP credentials or share them in issues, screenshots, or source files.
+
+### 7. Run the application
+
+Visit the Apache-served project URL:
+
+```text
+http://localhost/aj-alfresco/
+```
+
+The default database script creates an administrator account:
+
+- Email: `admin@ajalfresco.com`
+- Password: `admin123`
+
+Change this password immediately after the first login. Admins create tenant accounts from the admin portal; tenants then sign in with their assigned email and password.
+
+### 8. Verify the installation
+
+1. Sign in as the default administrator.
+2. Create an available stall from `admin/stalls.php`.
+3. Create a tenant from `admin/tenants.php`.
+4. Create an active contract from `admin/contracts.php`.
+5. Open the tenant dashboard and confirm the contract appears.
+6. Use `admin/test_reminders.php` to test SMTP reminders.
+7. Use PayMongo test keys and test payment methods to verify online checkout.
+
+## Configuration reference
+
+- `config/database.php`: MySQL connection settings.
+- `config/paymongo.php`: PayMongo secret key, public key, and generated callback URLs.
+- `config/smtp.php`: SMTP host, port, account, app password, sender address, and sender name.
+- `sql/database.sql`: Database schema and default administrator seed.
+- `includes/functions.php`: Shared authentication, database, notification, and email helpers.
+
+The repository contains placeholders for external credentials. Replace them only in a private deployment configuration and rotate any key that has been exposed.
+
+## System architecture
+
+```mermaid
+flowchart TD
+    Browser[Admin or tenant browser]
+    Apache[Apache and PHP application]
+    Auth[Session authentication]
+    Database[(MySQL aj_alfresco_rms)]
+    Mail[PHPMailer and SMTP provider]
+    PayMongo[PayMongo Checkout API]
+
+    Browser --> Apache
+    Apache --> Auth
+    Auth --> Database
+    Apache --> Database
+    Apache --> Mail
+    Apache --> PayMongo
+    PayMongo --> Browser
+```
+
+## System process flow
+
+```mermaid
+flowchart LR
+    Start[Admin signs in] --> Stall[Create available stall]
+    Stall --> Tenant[Create or activate tenant]
+    Tenant --> Contract[Create active contract]
+    Contract --> Dashboard[Tenant dashboard]
+    Dashboard --> Reminder[Generate due-date and expiry notifications]
+    Dashboard --> Payment[Start payment]
+    Payment --> Checkout[PayMongo Checkout Session]
+    Checkout --> Result{Payment result}
+    Result -->|Successful| Record[Record payment and receipt]
+    Result -->|Cancelled| History[Return to payment history]
+    Record --> History
+    Reminder --> Notifications[View and mark notifications as read]
+```
+
+## Main routes
+
+| Area | Entry points |
+| --- | --- |
+| Login | `index.php` |
+| Admin | `admin/dashboard.php`, `admin/tenants.php`, `admin/stalls.php`, `admin/contracts.php`, `admin/payments.php`, `admin/reports.php`, `admin/notifications.php` |
+| Tenant | `tenant/dashboard.php`, `tenant/contract.php`, `tenant/make_payment.php`, `tenant/payments.php`, `tenant/notifications.php` |
+| Testing | `admin/test_reminders.php`, `tenant/diagnose.php`, `tenant/simulate_payment_success.php` |
+
+## Project structure
+
+```text
+admin/                  Admin pages and form handlers
+assets/css/             Shared responsive stylesheet
+assets/js/              Shared browser behavior
+config/                 Database, PayMongo, and SMTP configuration
+includes/functions.php  Authentication, database, notifications, and mail helpers
+includes/fpdf/          Contract PDF generation library
+tenant/                 Tenant pages and payment handlers
+sql/database.sql        Database schema and default admin seed
+vendor/                 Composer autoload and installed libraries
+```
+
+## Payment flow
+
+1. A tenant opens `tenant/make_payment.php` and starts a checkout.
+2. The server creates a PayMongo Checkout Session.
+3. PayMongo handles the payment page and redirects to `tenant/payment_success.php`.
+4. The success handler checks the session, prevents duplicate references, and records a paid payment.
+5. The tenant can view or print the generated receipt from payment history.
+
+For local testing without a live payment, use `tenant/simulate_payment_success.php` only in a controlled development environment.
+
+## Security notes
+
+- Keep `config/paymongo.php` and `config/smtp.php` out of public source control when they contain real values.
+- Rotate any credential that has ever been committed or shared.
+- Use HTTPS in production.
+- Replace the seeded admin password immediately.
+- Restrict diagnostic and payment simulation pages to development or remove them before deployment.
