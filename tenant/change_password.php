@@ -46,7 +46,7 @@ $unread = notifUnreadCount($tenantId);
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Change Password - Tenant</title>
   <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
-  <script defer src="../assets/js/main.js"></script>
+  <script defer src="../assets/js/main.js?v=2"></script>
   <style>
     .password-card { max-width: 820px; margin: 0 auto; }
     .password-card .card-header { padding: 24px 28px; }

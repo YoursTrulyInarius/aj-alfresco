@@ -19,19 +19,17 @@ unset($_SESSION['flash']);
 $overdueTenants = [];
 $today = new DateTime('today');
 $currentMonth = $today->format('Y-m');
-$overdueResult = $conn->query("SELECT c.id, c.start_date, c.monthly_rent, u.full_name, u.business_name, s.stall_number FROM contracts c JOIN users u ON u.id=c.tenant_id JOIN stalls s ON s.id=c.stall_id WHERE c.status='active' ORDER BY u.full_name");
+$overdueResult = $conn->query("SELECT c.id, c.start_date, c.monthly_rent, u.full_name, u.business_name, s.stall_number FROM contracts c JOIN users u ON u.id=c.tenant_id JOIN stalls s ON s.id=c.stall_id LEFT JOIN payments p ON p.contract_id=c.id AND p.payment_for_month='$currentMonth' AND p.status='paid' WHERE c.status='active' AND p.id IS NULL ORDER BY u.full_name");
 if ($overdueResult) {
   while ($overdue = $overdueResult->fetch_assoc()) {
     $startDate = new DateTime($overdue['start_date']);
+    if ($startDate > $today) continue;
+
     $daysInMonth = (int)$today->format('t');
     $dueDay = min((int)$startDate->format('d'), $daysInMonth);
     $dueDate = DateTime::createFromFormat('Y-m-d', $currentMonth . '-' . str_pad((string)$dueDay, 2, '0', STR_PAD_LEFT));
 
-    $paidStmt = $conn->prepare("SELECT id FROM payments WHERE contract_id=? AND payment_for_month=? AND status='paid' LIMIT 1");
-    $paidStmt->bind_param("is", $overdue['id'], $currentMonth);
-    $paidStmt->execute();
-
-    if ($dueDate < $today && $paidStmt->get_result()->num_rows === 0) {
+    if ($dueDate < $today) {
       $overdue['due_date'] = $dueDate;
       $overdue['days_overdue'] = (int)$dueDate->diff($today)->days;
       $overdueTenants[] = $overdue;
@@ -42,7 +40,9 @@ if ($overdueResult) {
 $terminationRequests = [];
 $requestResult = $conn->query("SELECT id, message, created_at FROM notifications WHERE user_id=$adminId AND title='Termination Request' AND is_read=0 ORDER BY id DESC");
 if ($requestResult) {
-  while ($request = $requestResult->fetch_assoc()) {
+  $pendingNotifications = $requestResult->fetch_all(MYSQLI_ASSOC);
+  $requestResult->free();
+  foreach ($pendingNotifications as $request) {
     if (!preg_match('/Contract ID:\s*(\d+)/', $request['message'], $matches)) continue;
 
     $contractId = (int)$matches[1];

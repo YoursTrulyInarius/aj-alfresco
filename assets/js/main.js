@@ -1,11 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // 1) Confirm logout (works for any link that ends with logout.php)
-  document.querySelectorAll('a[href$="logout.php"]').forEach((a) => {
-    a.addEventListener("click", (e) => {
-      const ok = confirm("Are you sure you want to logout?");
-      if (!ok) e.preventDefault();
+  // 1) Confirm logout for admin pages only
+  if (!/\/tenant(?:\/|$)/i.test(window.location.pathname)) {
+    document.querySelectorAll('a[href$="logout.php"]').forEach((a) => {
+      a.addEventListener("click", (e) => {
+        const ok = confirm("Are you sure you want to logout?");
+        if (!ok) e.preventDefault();
+      });
     });
-  });
+  }
 
   // 2) Toast pop-up reminders (Tenant Dashboard uses window.__TOASTS__)
   const wrap = document.getElementById("toastWrap");
