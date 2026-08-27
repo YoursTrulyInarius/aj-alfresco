@@ -16,6 +16,29 @@ $unread = notifUnreadCount($adminId);
 $flash = $_SESSION['flash'] ?? '';
 unset($_SESSION['flash']);
 
+$overdueTenants = [];
+$today = new DateTime('today');
+$currentMonth = $today->format('Y-m');
+$overdueResult = $conn->query("SELECT c.id, c.start_date, c.monthly_rent, u.full_name, u.business_name, s.stall_number FROM contracts c JOIN users u ON u.id=c.tenant_id JOIN stalls s ON s.id=c.stall_id WHERE c.status='active' ORDER BY u.full_name");
+if ($overdueResult) {
+  while ($overdue = $overdueResult->fetch_assoc()) {
+    $startDate = new DateTime($overdue['start_date']);
+    $daysInMonth = (int)$today->format('t');
+    $dueDay = min((int)$startDate->format('d'), $daysInMonth);
+    $dueDate = DateTime::createFromFormat('Y-m-d', $currentMonth . '-' . str_pad((string)$dueDay, 2, '0', STR_PAD_LEFT));
+
+    $paidStmt = $conn->prepare("SELECT id FROM payments WHERE contract_id=? AND payment_for_month=? AND status='paid' LIMIT 1");
+    $paidStmt->bind_param("is", $overdue['id'], $currentMonth);
+    $paidStmt->execute();
+
+    if ($dueDate < $today && $paidStmt->get_result()->num_rows === 0) {
+      $overdue['due_date'] = $dueDate;
+      $overdue['days_overdue'] = (int)$dueDate->diff($today)->days;
+      $overdueTenants[] = $overdue;
+    }
+  }
+}
+
 $terminationRequests = [];
 $requestResult = $conn->query("SELECT id, message, created_at FROM notifications WHERE user_id=$adminId AND title='Termination Request' AND is_read=0 ORDER BY id DESC");
 if ($requestResult) {
@@ -112,6 +135,48 @@ if ($requestResult) {
               <h3><?php echo $activeContracts; ?></h3>
               <p>Active Contracts</p>
             </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:24px;">
+          <div class="card-header">
+            <div>
+              <h2>Tenants Past Due Date</h2>
+              <p style="color:var(--muted); font-size:13px; margin-top:4px;">Active contracts with no paid record for the current rental month.</p>
+            </div>
+            <?php if ($overdueTenants): ?>
+              <span class="status-badge overdue"><?php echo count($overdueTenants); ?> overdue</span>
+            <?php endif; ?>
+          </div>
+          <div class="card-body table-responsive">
+            <?php if (!$overdueTenants): ?>
+              <p style="color:var(--muted); margin:0;">No active tenants are past due.</p>
+            <?php else: ?>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tenant</th>
+                    <th>Stall</th>
+                    <th>Due date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($overdueTenants as $overdue): ?>
+                    <tr>
+                      <td><strong><?php echo htmlspecialchars($overdue['full_name']); ?></strong><?php if (!empty($overdue['business_name'])): ?><small style="display:block; margin-top:3px;"><?php echo htmlspecialchars($overdue['business_name']); ?></small><?php endif; ?></td>
+                      <td><?php echo htmlspecialchars($overdue['stall_number']); ?></td>
+                      <td><?php echo $overdue['due_date']->format('M d, Y'); ?></td>
+                      <td><?php echo formatMoney($overdue['monthly_rent']); ?></td>
+                      <td><span class="status-badge overdue"><?php echo $overdue['days_overdue']; ?> days overdue</span></td>
+                      <td><a class="btn btn-primary btn-sm" href="payments.php?search=<?php echo urlencode($overdue['full_name']); ?>" style="width:auto;">View payments</a></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            <?php endif; ?>
           </div>
         </div>
 
