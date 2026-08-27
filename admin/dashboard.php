@@ -13,6 +13,31 @@ $activeContracts = $activeContractsRes ? (int)$activeContractsRes->fetch_assoc()
 
 $adminId = (int)$_SESSION['user_id'];
 $unread = notifUnreadCount($adminId);
+$flash = $_SESSION['flash'] ?? '';
+unset($_SESSION['flash']);
+
+$terminationRequests = [];
+$requestResult = $conn->query("SELECT id, message, created_at FROM notifications WHERE user_id=$adminId AND title='Termination Request' AND is_read=0 ORDER BY id DESC");
+if ($requestResult) {
+  while ($request = $requestResult->fetch_assoc()) {
+    if (!preg_match('/Contract ID:\s*(\d+)/', $request['message'], $matches)) continue;
+
+    $contractId = (int)$matches[1];
+    $contractStmt = $conn->prepare("SELECT c.id, c.start_date, c.end_date, c.monthly_rent, u.full_name, u.business_name, s.stall_number FROM contracts c JOIN users u ON u.id=c.tenant_id JOIN stalls s ON s.id=c.stall_id WHERE c.id=? LIMIT 1");
+    $contractStmt->bind_param("i", $contractId);
+    $contractStmt->execute();
+    $contract = $contractStmt->get_result()->fetch_assoc();
+
+    if ($contract) {
+      $terminationRequests[] = [
+        'notification_id' => (int)$request['id'],
+        'contract_id' => $contractId,
+        'created_at' => $request['created_at'],
+        'contract' => $contract
+      ];
+    }
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,6 +85,10 @@ $unread = notifUnreadCount($adminId);
       </div>
 
       <div class="content">
+        <?php if ($flash): ?>
+          <div class="alert alert-success" style="margin-bottom:20px;"><?php echo htmlspecialchars($flash); ?></div>
+        <?php endif; ?>
+
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue">👥</div>
@@ -83,6 +112,47 @@ $unread = notifUnreadCount($adminId);
               <h3><?php echo $activeContracts; ?></h3>
               <p>Active Contracts</p>
             </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:24px;">
+          <div class="card-header">
+            <div>
+              <h2>Termination Requests</h2>
+              <p style="color:var(--muted); font-size:13px; margin-top:4px;">Review tenant requests before changing contract status.</p>
+            </div>
+            <?php if (count($terminationRequests) > 0): ?>
+              <span class="status-badge pending"><?php echo count($terminationRequests); ?> pending</span>
+            <?php endif; ?>
+          </div>
+          <div class="card-body">
+            <?php if (!$terminationRequests): ?>
+              <p style="color:var(--muted); margin:0;">No termination requests require review.</p>
+            <?php else: ?>
+              <div style="display:grid; gap:14px;">
+                <?php foreach ($terminationRequests as $request): $requestContract = $request['contract']; ?>
+                  <div style="border:1px solid var(--border); border-radius:10px; padding:16px; display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;">
+                    <div>
+                      <strong style="color:var(--secondary); display:block; margin-bottom:5px;"><?php echo htmlspecialchars($requestContract['full_name']); ?><?php if (!empty($requestContract['business_name'])): ?> <span style="color:var(--muted); font-weight:500;">(<?php echo htmlspecialchars($requestContract['business_name']); ?>)</span><?php endif; ?></strong>
+                      <span style="color:var(--muted); font-size:13px;">Contract #<?php echo $request['contract_id']; ?> | Stall <?php echo htmlspecialchars($requestContract['stall_number']); ?> | <?php echo formatDate($requestContract['start_date']); ?> to <?php echo formatDate($requestContract['end_date']); ?></span>
+                      <small style="color:var(--muted); display:block; margin-top:5px;">Requested <?php echo formatDate($request['created_at']); ?></small>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <form method="POST" action="process_notifications.php" style="margin:0;" onsubmit="return confirm('Approve this termination request? The stall will become available.');">
+                        <input type="hidden" name="action" value="approve_termination">
+                        <input type="hidden" name="notification_id" value="<?php echo $request['notification_id']; ?>">
+                        <button class="btn btn-success btn-sm" type="submit" style="width:auto;">Approve</button>
+                      </form>
+                      <form method="POST" action="process_notifications.php" style="margin:0;" onsubmit="return confirm('Reject this termination request?');">
+                        <input type="hidden" name="action" value="reject_termination">
+                        <input type="hidden" name="notification_id" value="<?php echo $request['notification_id']; ?>">
+                        <button class="btn btn-danger btn-sm" type="submit" style="width:auto;">Reject</button>
+                      </form>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
 

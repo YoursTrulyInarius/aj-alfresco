@@ -38,34 +38,42 @@ $unread = notifUnreadCount($tenantId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>My Payments - Tenant</title>
-  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
 </head>
 <body>
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Tenant Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Tenant Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
-      <li><a class="active" href="payments.php"><span class="icon">💰</span> Payment History</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="contract.php">My Contract</a></li>
+      <li><a href="make_payment.php">Make Payment</a></li>
+      <li><a class="active" href="payments.php">Payment History</a></li>
       <li>
-        <a href="notifications.php"><span class="icon">🔔</span> Notifications
+        <a href="notifications.php">Notifications
           <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
         </a>
       </li>
-      <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="change_password.php">Change Password</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div class="top-bar">
-      <h1>Payment History</h1>
+      <div class="header-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <h1>Payment History</h1>
+      </div>
       <div class="user-info">
         <div class="avatar"><?php echo $initial; ?></div>
         <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
@@ -156,6 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function toggleSidebar() {
     document.querySelector('.sidebar').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 </script>
 </body>

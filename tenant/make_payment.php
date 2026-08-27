@@ -36,10 +36,50 @@ $unread = notifUnreadCount($tenantId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Make Payment - A&J Alfresco</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+    <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    .payment-card { max-width: 600px; margin: 0 auto; }
+    .payment-card { max-width: 900px; margin: 0 auto; }
+    .payment-card .card-header { padding: 24px 28px; }
+    .payment-card .card-body { padding: 28px; }
+    .payment-header-copy h2 { margin-bottom: 5px; }
+    .payment-header-copy p { color: var(--muted); font-size: 13px; margin: 0; }
+    .payment-overview {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: center;
+        padding: 22px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+    .payment-label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .payment-stall { color: var(--secondary); font-size: 20px; font-weight: 800; }
+    .payment-month { color: var(--secondary-mid); font-size: 14px; margin-top: 5px; }
+    .payment-amount { color: var(--primary); font-size: 25px; font-weight: 800; text-align: right; }
+    .payment-divider { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+    .payment-status { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+    .payment-status.paid { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+    .payment-status.paid strong { color: #065f46; }
+    .payment-status-mark { width: 22px; height: 22px; border-radius: 50%; background: #10b981; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+    .payment-instructions { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0 0 18px; }
+    .payment-action { width: 100% !important; padding: 13px 18px; font-size: 14px; }
+    .payment-provider { color: var(--muted); font-size: 11px; text-align: center; margin: 10px 0 0; }
+    .payment-provider strong { color: var(--secondary-mid); }
+    @media (max-width: 560px) {
+        .payment-card .card-header, .payment-card .card-body { padding: 18px; }
+        .payment-overview { grid-template-columns: 1fr; gap: 16px; padding: 18px; }
+        .payment-amount { text-align: left; font-size: 23px; }
+    }
     #paymongo-modal {
         display: none; position: fixed; z-index: 2000; left: 0; top: 0;
         width: 100%; height: 100%; background: rgba(0,0,0,0.6);
@@ -57,47 +97,72 @@ $unread = notifUnreadCount($tenantId);
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Tenant Panel</p>
+            <div class="sidebar-brand">
+                <span class="sidebar-brand-name">A&J Alfresco</span>
+                <span class="sidebar-brand-sub">Tenant Panel</span>
+            </div>
     </div>
+        <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a class="active" href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
-      <li><a href="notifications.php"><span class="icon">🔔</span> Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+            <li><a href="dashboard.php">Dashboard</a></li>
+            <li><a href="contract.php">My Contract</a></li>
+            <li><a class="active" href="make_payment.php">Make Payment</a></li>
+            <li><a href="payments.php">Payment History</a></li>
+            <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
+            <li><a href="change_password.php">Change Password</a></li>
     </ul>
+        <div class="sidebar-footer">
+            <a href="logout.php">Logout</a>
+        </div>
   </aside>
 
   <main class="main-content">
+        <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div class="top-bar">
-       <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-       <h1>Rent Payment</h1>
-       <div class="user-info"><span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span></div>
+             <div class="header-left">
+                 <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+                 <h1>Rent Payment</h1>
+             </div>
+             <div class="user-info">
+                 <div class="avatar"><?php echo strtoupper(substr($_SESSION['full_name'] ?? 'T', 0, 1)); ?></div>
+                 <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
+             </div>
     </div>
 
     <div class="content">
       <div class="payment-card card">
         <div class="card-header">
-          <h2>Monthly Rent Payment</h2>
+          <div class="payment-header-copy">
+            <h2>Monthly Rent Payment</h2>
+            <p>Review the payment details before continuing.</p>
+          </div>
         </div>
         <div class="card-body">
-            <div style="background:#f8f9fa; padding:20px; border-radius:12px; margin-bottom:25px;">
-                <p><strong>Stall:</strong> <?php echo htmlspecialchars($contract['stall_number']); ?></p>
-                <p><strong>Month:</strong> <?php echo date('F Y'); ?></p>
-                <h3 style="color:#d63384; margin-top:10px;">Amount Due: <?php echo formatMoney($contract['monthly_rent']); ?></h3>
+            <div class="payment-overview">
+                <div>
+                    <span class="payment-label">Rental stall</span>
+                    <strong class="payment-stall"><?php echo htmlspecialchars($contract['stall_number']); ?></strong>
+                    <p class="payment-month">Payment for <?php echo date('F Y'); ?></p>
+                </div>
+                <div>
+                    <span class="payment-label">Amount due</span>
+                    <strong class="payment-amount"><?php echo formatMoney($contract['monthly_rent']); ?></strong>
+                </div>
             </div>
 
             <?php if ($paid): ?>
-                <div class="alert alert-success">✅ You have already paid for this month. <a href="receipt.php?id=<?php echo $paidId; ?>" style="color:inherit; text-decoration:underline;">View Receipt</a></div>
+                <hr class="payment-divider">
+                <div class="payment-status paid">
+                    <span class="payment-status-mark">&#10003;</span>
+                    <span><strong>Payment already recorded.</strong> You have paid for this month. <a href="receipt.php?id=<?php echo $paidId; ?>" style="color:inherit; text-decoration:underline;">View receipt</a></span>
+                </div>
             <?php else: ?>
-                <p style="margin-bottom:20px; color:#666;">You will be redirected to the secure **PayMongo** checkout page for GCash, Maya, or GrabPay.</p>
-                <button type="button" class="btn btn-primary" onclick="initiatePayment()" style="width:100%; padding:15px; font-weight:bold; font-size:1.1rem;">
-                    💳 Process E-Wallet Payment
+                <hr class="payment-divider">
+                <p class="payment-instructions">You will continue to the secure PayMongo checkout page, where you can complete payment using available supported e-wallet methods.</p>
+                <button type="button" class="btn btn-primary payment-action" onclick="initiatePayment()">
+                    Continue to secure payment
                 </button>
-                <p style="text-align:center; margin-top:15px; color:#888; font-size:0.85rem;">Powered by <strong>PayMongo</strong> Secure Checkout</p>
+                <p class="payment-provider">Secure checkout powered by <strong>PayMongo</strong></p>
             <?php endif; ?>
         </div>
       </div>
@@ -172,6 +237,7 @@ function startStatusCheck(sessionId) {
 
 function toggleSidebar() {
     document.querySelector('.sidebar').classList.toggle('show');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 </script>
 </body>

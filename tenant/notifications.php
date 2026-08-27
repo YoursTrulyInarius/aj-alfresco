@@ -31,7 +31,7 @@ $notifs = $stmt->get_result();
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .notif-msg { cursor: pointer; transition: 0.2s; position: relative; }
@@ -42,23 +42,27 @@ $notifs = $stmt->get_result();
 <div class="dashboard">
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span class="logo">🏪</span>
-      <h2>A&J Alfresco</h2>
-      <p>Tenant Panel</p>
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-name">A&J Alfresco</span>
+        <span class="sidebar-brand-sub">Tenant Panel</span>
+      </div>
     </div>
+    <p class="sidebar-nav-label">Main Menu</p>
     <ul class="sidebar-menu">
-      <li><a href="dashboard.php"><span class="icon">📊</span> Dashboard</a></li>
-      <li><a href="contract.php"><span class="icon">📄</span> My Contract</a></li>
-      <li><a href="make_payment.php"><span class="icon">🧾</span> Make Payment</a></li>
-      <li><a href="payments.php"><span class="icon">💰</span> Payment History</a></li>
+      <li><a href="dashboard.php">Dashboard</a></li>
+      <li><a href="contract.php">My Contract</a></li>
+      <li><a href="make_payment.php">Make Payment</a></li>
+      <li><a href="payments.php">Payment History</a></li>
       <li>
-        <a class="active" href="notifications.php"><span class="icon">🔔</span> Notifications
+        <a class="active" href="notifications.php">Notifications
           <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?>
         </a>
       </li>
-      <li><a href="change_password.php"><span class="icon">🔑</span> Change Password</a></li>
-      <li><a href="logout.php"><span class="icon">🚪</span> Logout</a></li>
+      <li><a href="change_password.php">Change Password</a></li>
     </ul>
+    <div class="sidebar-footer">
+      <a href="logout.php">Logout</a>
+    </div>
   </aside>
 
   <main class="main-content">

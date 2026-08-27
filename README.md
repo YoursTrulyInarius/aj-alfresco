@@ -17,13 +17,15 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 - View payment history, search records, and print receipts
 - View payment reports
 - Filter and mark notifications as read
+- Review tenant termination requests and approve or reject them from the dashboard
 - Force-send rent-due and contract-expiry email reminders from `admin/test_reminders.php`
 
 ### Tenant portal
 
 - Secure login with separate admin and tenant roles
 - Tenant dashboard with contract, payment, and reminder summaries
-- View contract details and submit a renewal request for an active contract
+- View contract details and the generated PDF agreement
+- Submit renewal and termination requests for an active contract
 - Start a PayMongo Checkout payment for the current rental contract
 - View payment history and print individual receipts
 - Filter notifications by payment or contract expiry and mark them as read
@@ -31,7 +33,9 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 
 ### Notifications and reminders
 
-Loading the tenant dashboard creates applicable due-date and contract-expiry notifications. Notification types are stored as `due_date`, `contract_expiry`, `payment`, or `general`. The admin reminder test page can send rent reminders for 7, 3, or 1 day before the due date and contract-expiry reminders for 90, 60, or 30 days before expiry.
+Loading the tenant dashboard creates applicable due-date and contract-expiry notifications. Notification types are stored as `due_date`, `contract_expiry`, `payment`, or `general`. The admin reminder test page can send rent reminders for 7, 3, or 1 day before the due date and contract-expiry reminders for 90, 60, or 30 days before expiry. SweetAlert2 is used for tenant action confirmations and notification dialogs.
+
+Termination requests require administrator approval. A tenant submits a request from the contract page, the request appears in the admin dashboard, and the admin can approve or reject it. Approval changes the contract to `terminated` and makes the stall `available`; rejection keeps the contract active and notifies the tenant.
 
 ## Technology stack
 
@@ -154,6 +158,8 @@ Change this password immediately after the first login. Admins create tenant acc
 - `sql/database.sql`: Database schema and default administrator seed.
 - `includes/functions.php`: Shared authentication, database, notification, and email helpers.
 
+The tenant portal uses the shared admin-style navigation shell across the dashboard, contract, payment, notification, and password pages. Contract, payment, and password forms include responsive card layouts for desktop and mobile screens.
+
 The repository contains placeholders for external credentials. Replace them only in a private deployment configuration and rotate any key that has been exposed.
 
 ## System architecture
@@ -192,6 +198,10 @@ flowchart LR
     Result -->|Cancelled| History[Return to payment history]
     Record --> History
     Reminder --> Notifications[View and mark notifications as read]
+    Dashboard --> Termination[Submit termination request]
+    Termination --> AdminReview[Admin reviews request]
+    AdminReview -->|Approve| Release[Terminate contract and release stall]
+    AdminReview -->|Reject| NotifyTenant[Notify tenant and keep contract active]
 ```
 
 ## Main routes
