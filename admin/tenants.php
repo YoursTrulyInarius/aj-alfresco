@@ -39,7 +39,9 @@ $unread = notifUnreadCount($adminId);
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     .modal-overlay {
@@ -172,12 +174,13 @@ $unread = notifUnreadCount($adminId);
                     </span>
                   </td>
                   <td>
-                    <div style="display:flex; gap:5px;">
-                      <a class="btn btn-primary btn-sm" href="tenants.php?edit_id=<?php echo (int)$row['id']; ?>">Edit</a>
-                      <form method="POST" action="process_tenant.php" onsubmit="return confirm('Delete this account?');">
+                    <div style="display:flex; gap:8px;">
+                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewTenant(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="View Details">👁️</a>
+                      <a class="btn btn-warning btn-sm" href="javascript:void(0)" onclick='editTenantInPlace(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="Edit Tenant">✏️</a>
+                      <form method="POST" action="process_tenant.php" onsubmit="return confirmDelete(event, this)" style="display:inline-block; margin:0;">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        <button class="btn btn-danger btn-sm" type="submit" title="Delete Tenant">🗑️</button>
                       </form>
                     </div>
                   </td>
@@ -313,13 +316,72 @@ function toggleForm() {
     f.classList.toggle('show');
     
     if (f.classList.contains('show')) {
-        b.style.overflow = 'hidden'; // Lock background scroll
+        b.style.overflow = 'hidden'; 
     } else {
-        b.style.overflow = 'auto'; // Re-enable scroll
-        if (window.location.search.includes('edit_id')) {
-            window.location.href = 'tenants.php';
-        }
+        b.style.overflow = 'auto';
+        // Reset form for "Add New"
+        const form = document.querySelector('#tenantFormContainer form');
+        form.reset();
+        form.querySelector('input[name="action"]').value = 'create';
+        form.querySelector('input[name="id"]').value = '0';
+        form.querySelector('button[type="submit"]').textContent = '➕ Create Tenant Account';
+        form.querySelector('h2').textContent = 'Register New Tenant';
     }
+}
+
+function viewTenant(t) {
+  Swal.fire({
+    title: 'Tenant Profile',
+    html: `
+      <div style="text-align:left; line-height:1.8;">
+        <p><b>Name:</b> ${t.full_name}</p>
+        <p><b>Business:</b> ${t.business_name} (${t.business_type})</p>
+        <p><b>Stall:</b> ${t.stall_no || 'None'}</p>
+        <p><b>Email:</b> ${t.email}</p>
+        <p><b>Phone:</b> ${t.phone}</p>
+        <p><b>Address:</b> ${t.address}</p>
+        <p><b>Status:</b> ${t.status.toUpperCase()}</p>
+      </div>
+    `,
+    icon: 'info',
+    confirmButtonColor: '#ff2d55'
+  });
+}
+
+function editTenantInPlace(t) {
+  toggleForm();
+  const form = document.querySelector('#tenantFormContainer form');
+  form.querySelector('h2').textContent = 'Edit Tenant Details';
+  form.querySelector('input[name="action"]').value = 'update';
+  form.querySelector('input[name="id"]').value = t.id;
+  
+  form.querySelector('input[name="full_name"]').value = t.full_name;
+  form.querySelector('input[name="email"]').value = t.email;
+  form.querySelector('input[name="business_name"]').value = t.business_name;
+  form.querySelector('input[name="business_type"]').value = t.business_type;
+  form.querySelector('input[name="phone"]').value = t.phone;
+  form.querySelector('select[name="status"]').value = t.status;
+  form.querySelector('select[name="stall_id"]').value = t.current_stall_id || '';
+  form.querySelector('textarea[name="address"]').value = t.address;
+  
+  form.querySelector('button[type="submit"]').textContent = '💾 Update Account';
+}
+
+function confirmDelete(e, form) {
+  e.preventDefault();
+  Swal.fire({
+    title: 'Are you sure?',
+    text: "Deleting this tenant will also deactivate their contracts!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, delete it!'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      form.submit();
+    }
+  });
 }
 
 function handleOverlayClick(e) {

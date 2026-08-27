@@ -245,29 +245,71 @@ html, body { overflow-x:hidden; max-width:100%; }
 .stat-info p{font-size:12px;color:var(--muted)}
 
 /* Card & Table Polish */
-.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid #f0f0f0;margin-bottom:24px;width:100%;}
-.card-header{padding:15px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between}
-.table-responsive{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
-table{width:100%;border-collapse:collapse;min-width:650px;}
+.card{
+  background:#fff; border-radius:18px; 
+  box-shadow:0 8px 30px rgba(0,0,0,0.04); 
+  border:1px solid #f0f0f0; margin-bottom:28px; width:100%;
+}
+.card-header{
+  padding:20px 24px; border-bottom:1px solid #f8f8f8; 
+  display:flex; align-items:center; justify-content:space-between;
+}
+.card-header h2{ font-size:18px; font-weight:800; color:#333; margin:0; }
+.card-body{ padding:24px; }
 
-/* Modal Interaction Fix */
+.table-responsive{ overflow-x:auto; -webkit-overflow-scrolling:touch; width:100%; border-radius:12px; }
+table{ width:100%; border-collapse:collapse; min-width:800px; text-align:left; }
+
+table thead th {
+  background:#f9fafb; color:#888; font-size:12px; 
+  text-transform:uppercase; letter-spacing:0.05em; 
+  padding:16px 20px; font-weight:700; border-bottom:1px solid #f0f0f0;
+}
+table tbody td {
+  padding:18px 20px; font-size:14px; color:#444; 
+  border-bottom:1px solid #f8f8f8; transition: .2s;
+}
+table tbody tr:hover td { background:#fcfcfc; }
+table tbody tr:last-child td { border-bottom:none; }
+
+/* Status Badges - Boxed */
+.status-badge {
+  display:inline-flex; align-items:center; padding:6px 12px; 
+  border-radius:10px; font-size:12px; font-weight:700; 
+  text-transform:capitalize; gap:6px;
+}
+.status-badge.paid, .status-badge.active, .status-badge.read { background:#ecfdf5; color:#10b981; }
+.status-badge.pending, .status-badge.unread { background:#fff7ed; color:#f59e0b; }
+.status-badge.overdue, .status-badge.expired { background:#fef2f2; color:#ef4444; }
+
+/* Success check icon for badges? */
+.status-badge.paid::before { content:'●'; font-size:10px; }
+.status-badge.pending::before { content:'●'; font-size:10px; }
+
+/* Modal Interaction Fix - RESTORED */
 .modal-overlay{
-  display:none;position:fixed;inset:0;
-  background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);
-  align-items:center;justify-content:center;padding:15px;z-index:9500;
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.55); backdrop-filter:blur(10px);
+  align-items:center; justify-content:center; padding:15px; z-index:9500;
 }
-.modal-overlay.show{display:flex}
-.modal-content{
-  width:100%;max-width:850px;max-height:90vh;overflow-y:auto;
-  border-radius:24px;background:#fff;padding:25px;
-  box-shadow:0 30px 90px rgba(0,0,0,0.4);
+.modal-overlay.show{ display:flex; }
+.modal-content {
+  width:100%; max-width:800px; max-height:90vh; overflow-y:auto;
+  border-radius:24px; background:#fff; padding:32px;
+  box-shadow:0 30px 90px rgba(0,0,0,0.2);
+  animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+@keyframes modalPop {
+  from { opacity:0; transform: scale(0.95) translateY(10px); }
+  to { opacity:1; transform: scale(1) translateY(0); }
+}
+
 @media (max-width: 600px){
-  .modal-content{padding:15px;border-radius:16px;}
+  .modal-content{ padding:20px; border-radius:18px; }
 }
-.modal h2{font-size:20px;font-weight:900;color:#2a1a22;margin-bottom:12px}
-.modal-buttons{display:flex;gap:10px;margin-top:14px}
-.modal-buttons .btn{flex:1}
+.modal h2{ font-size:22px; font-weight:900; color:#333; margin-bottom:12px; }
+.modal-buttons{ display:flex; gap:12px; margin-top:20px; }
+.modal-buttons .btn{ flex:1; padding:12px; }
 
 /* Receipt */
 .receipt{

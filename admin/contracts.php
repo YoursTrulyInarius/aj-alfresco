@@ -35,7 +35,8 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contracts - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -188,12 +189,12 @@ $unread = notifUnreadCount($adminId);
                     </span>
                   </td>
                   <td>
-                    <div style="display:flex; gap:5px;">
-                      <a class="btn btn-primary btn-sm" target="_blank" href="print_contract.php?id=<?php echo (int)$c['id']; ?>">Print</a>
-                      <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')">
+                    <div style="display:flex; gap:8px;">
+                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewContract(<?php echo htmlspecialchars(json_encode($c)); ?>)' title="View Details">👁️</a>
+                      <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')" style="display:inline-block; margin:0;">
                         <input type="hidden" name="action" value="terminate">
                         <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit">End Lease</button>
+                        <button class="btn btn-danger btn-sm" type="submit" title="End Lease">🗑️</button>
                       </form>
                     </div>
                   </td>
@@ -214,6 +215,27 @@ $unread = notifUnreadCount($adminId);
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('show');
   document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+function viewContract(c) {
+  Swal.fire({
+    title: 'Contract Details',
+    html: `
+      <div style="text-align:left; line-height:1.8;">
+        <p><b>Tenant:</b> ${c.tenant_name}</p>
+        <p><b>Business:</b> ${c.business_name}</p>
+        <p><b>Stall:</b> ${c.stall_number}</p>
+        <p><b>Validity:</b> ${c.start_date} to ${c.end_date}</p>
+        <p><b>Monthly Rent:</b> ₱${Number(c.monthly_rent).toLocaleString()}</p>
+        <p><b>Security Deposit:</b> ₱${Number(c.deposit_amount).toLocaleString()}</p>
+        <p><b>Status:</b> ${c.status.toUpperCase()}</p>
+        <hr style="margin:10px 0; border:0; border-top:1px solid #eee;">
+        <p><b>Terms:</b><br><span style="color:#666;">${c.terms || 'No special terms provided.'}</span></p>
+      </div>
+    `,
+    icon: 'info',
+    confirmButtonColor: '#ff2d55'
+  });
 }
 
 function confirmAction(e, form, type) {

@@ -22,7 +22,12 @@ $notifs = $stmt->get_result();
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Notifications - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .notif-msg { cursor: pointer; transition: 0.2s; position: relative; }
+    .notif-msg:hover { color: var(--accent); }
+  </style>
 </head>
 <body>
 <div class="dashboard">
@@ -83,7 +88,10 @@ $notifs = $stmt->get_result();
               <?php while($n = $notifs->fetch_assoc()): ?>
                 <tr class="<?php echo $n['is_read'] ? '' : 'unread-row'; ?>">
                   <td><strong><?php echo htmlspecialchars($n['title']); ?></strong></td>
-                  <td><?php echo htmlspecialchars($n['message']); ?></td>
+                  <td class="notif-msg" onclick="showNotif('<?php echo addslashes($n['title']); ?>', '<?php echo addslashes($n['message']); ?>')">
+                    <?php echo htmlspecialchars($n['message']); ?>
+                    <div style="font-size: 10px; color: #999; margin-top: 4px;">📂 Click to view full details</div>
+                  </td>
                   <td><span class="status-badge <?php echo htmlspecialchars($n['type']); ?>"><?php echo htmlspecialchars($n['type']); ?></span></td>
                   <td>
                     <?php if ((int)$n['is_read'] === 1): ?>
@@ -121,6 +129,32 @@ $notifs = $stmt->get_result();
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('show');
   document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+function showNotif(title, msg) {
+  Swal.fire({
+    title: title,
+    text: msg,
+    icon: 'info',
+    confirmButtonText: 'Okay',
+    confirmButtonColor: '#ff2d55',
+    customClass: {
+      popup: 'modal-pop-design'
+    }
+  });
+}
+
+function showNotif(title, msg) {
+  Swal.fire({
+    title: title,
+    text: msg,
+    icon: 'info',
+    confirmButtonText: 'Great!',
+    confirmButtonColor: '#ff2d55',
+    customClass: {
+      popup: 'modal-pop-design'
+    }
+  });
 }
 </script>
 </body>

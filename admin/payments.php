@@ -43,7 +43,8 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Payments - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -194,12 +195,11 @@ $unread = notifUnreadCount($adminId);
                   </td>
                   <td><?php echo date('M Y', strtotime($p['payment_for_month'] . '-01')); ?></td>
                   <td><?php echo formatMoney($p['amount']); ?></td>
-                  <td>
-                    <span class="status-badge paid" style="<?php echo ($p['payment_method'] == 'paymongo') ? 'background:#e83e8c;' : ''; ?>">
-                      <?php echo strtoupper($p['payment_method']); ?>
-                    </span><br>
-                    <small><?php echo htmlspecialchars($p['reference_number']); ?></small>
-                  </td>
+                   <td>
+                     <span class="status-badge paid" style="<?php echo ($p['payment_method'] == 'paymongo') ? 'background:#e83e8c;' : ''; ?>">
+                       <?php echo strtoupper($p['payment_method']); ?>
+                     </span>
+                   </td>
                   <td>
                     <small>
                       <?php echo date('M d, Y', strtotime($p['created_at'])); ?><br>
@@ -207,12 +207,12 @@ $unread = notifUnreadCount($adminId);
                     </small>
                   </td>
                   <td>
-                    <div style="display:flex; gap:5px;">
-                      <a class="btn btn-success btn-sm" target="_blank" href="receipt.php?id=<?php echo (int)$p['id']; ?>">Print</a>
-                      <form method="POST" action="process_payments.php" onsubmit="return confirmDelete(event, this)">
+                    <div style="display:flex; gap:8px;">
+                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewPayment(<?php echo htmlspecialchars(json_encode($p)); ?>)' title="View Details">👁️</a>
+                      <form method="POST" action="process_payments.php" onsubmit="return confirmDelete(event, this)" style="display:inline-block; margin:0;">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$p['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        <button class="btn btn-danger btn-sm" type="submit" title="Delete Payment">🗑️</button>
                       </form>
                     </div>
                   </td>
@@ -239,6 +239,26 @@ function toggleSidebar() {
 function togglePaymentForm() {
   const form = document.getElementById('paymentFormContainer');
   $(form).slideToggle(300);
+}
+
+function viewPayment(p) {
+  Swal.fire({
+    title: 'Payment Details',
+    html: `
+      <div style="text-align:left; line-height:1.8;">
+        <p><b>Receipt:</b> ${p.receipt_number}</p>
+        <p><b>Tenant:</b> ${p.tenant_name}</p>
+        <p><b>Stall:</b> ${p.stall_number}</p>
+        <p><b>Amount:</b> ₱${Number(p.amount).toLocaleString()}</p>
+        <p><b>Method:</b> ${p.payment_method.toUpperCase()}</p>
+        <p><b>Covered:</b> ${p.payment_for_month}</p>
+        <p><b>Date:</b> ${new Date(p.created_at).toLocaleString()}</p>
+        ${p.notes ? '<p><b>Notes:</b> ' + p.notes + '</p>' : ''}
+      </div>
+    `,
+    icon: 'info',
+    confirmButtonColor: '#ff2d55'
+  });
 }
 
 function confirmDelete(e, form) {

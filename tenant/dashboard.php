@@ -58,7 +58,7 @@ if ($contract) {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tenant Dashboard - A&J Alfresco</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>

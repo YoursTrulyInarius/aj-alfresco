@@ -22,8 +22,12 @@ $notifs = $stmt->get_result();
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Notifications - Tenant</title>
-  <link rel="stylesheet" href="../assets/css/style.css"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .notif-msg { cursor: pointer; transition: 0.2s; position: relative; }
+    .notif-msg:hover { color: var(--accent); }
+  </style>
 </head>
 <body>
 <div class="dashboard">
@@ -49,8 +53,12 @@ $notifs = $stmt->get_result();
   </aside>
 
   <main class="main-content">
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div class="top-bar">
-      <h1>Notifications</h1>
+      <div class="header-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <h1>Notifications</h1>
+      </div>
       <div class="user-info">
         <div class="avatar"><?php echo $initial; ?></div>
         <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
@@ -83,7 +91,10 @@ $notifs = $stmt->get_result();
               <?php while($n = $notifs->fetch_assoc()): ?>
                 <tr>
                   <td><?php echo htmlspecialchars($n['title']); ?></td>
-                  <td><?php echo htmlspecialchars($n['message']); ?></td>
+                  <td class="notif-msg" onclick="showNotif('<?php echo addslashes($n['title']); ?>', '<?php echo addslashes($n['message']); ?>')">
+                    <?php echo htmlspecialchars($n['message']); ?>
+                    <div style="font-size: 10px; color: #999; margin-top: 4px;">📂 Click to view full details</div>
+                  </td>
                   <td><?php echo htmlspecialchars($n['type']); ?></td>
                   <td>
                     <?php if ((int)$n['is_read'] === 1): ?>
@@ -118,5 +129,24 @@ $notifs = $stmt->get_result();
     </div>
   </main>
 </div>
+<script>
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('show');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+function showNotif(title, msg) {
+  Swal.fire({
+    title: title,
+    text: msg,
+    icon: 'info',
+    confirmButtonText: 'Okay',
+    confirmButtonColor: '#ff2d55',
+    customClass: {
+      popup: 'modal-pop-design'
+    }
+  });
+}
+</script>
 </body>
 </html>

@@ -42,8 +42,10 @@ $unread = notifUnreadCount($adminId);
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Stalls - Admin</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=5"/>
+  <link rel="stylesheet" href="../assets/css/style.css?v=6"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 <div class="dashboard">
@@ -84,39 +86,31 @@ $unread = notifUnreadCount($adminId);
         <div class="alert alert-success"><?php echo htmlspecialchars($flash); ?></div>
       <?php endif; ?>
 
-      <!-- ADD/EDIT STALL FORM -->
-      <div class="card">
-        <div class="card-header">
-          <h2><?php echo $editStall ? 'Edit Stall' : 'Add Stall'; ?></h2>
-        </div>
+      <!-- STALL FORM (MODAL) -->
+      <div id="modalOverlay" class="modal-overlay <?php echo $editStall ? 'show' : ''; ?>" onclick="handleOverlayClick(event)">
+        <div class="modal-content">
+          <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:20px;">
+            <h2 id="modalTitle"><?php echo $editStall ? 'Edit Stall' : 'Add New Stall'; ?></h2>
+            <span style="font-size:30px; cursor:pointer;" onclick="toggleForm()">&times;</span>
+          </div>
 
-        <div class="card-body">
-          <form method="POST" action="process_stall.php">
+          <form id="stallForm" method="POST" action="process_stall.php">
             <input type="hidden" name="action" value="<?php echo $editStall ? 'update' : 'create'; ?>">
             <input type="hidden" name="id" value="<?php echo (int)($editStall['id'] ?? 0); ?>">
 
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
               <div class="form-group">
                 <label>Stall Number *</label>
-                <input type="text" name="stall_number" required
-                       placeholder="e.g., S-001"
-                       value="<?php echo htmlspecialchars($editStall['stall_number'] ?? ''); ?>">
+                <input type="text" name="stall_number" required placeholder="e.g., S-001" value="<?php echo htmlspecialchars($editStall['stall_number'] ?? ''); ?>">
               </div>
-
               <div class="form-group">
                 <label>Stall Name (optional)</label>
-                <input type="text" name="stall_name"
-                       placeholder="e.g., Food Stall A"
-                       value="<?php echo htmlspecialchars($editStall['stall_name'] ?? ''); ?>">
+                <input type="text" name="stall_name" placeholder="e.g., Food Stall A" value="<?php echo htmlspecialchars($editStall['stall_name'] ?? ''); ?>">
               </div>
-
               <div class="form-group">
                 <label>Monthly Rate (PHP) *</label>
-                <input type="text" name="monthly_rate" required class="money-input"
-                       placeholder="0.00"
-                       value="<?php echo htmlspecialchars($editStall['monthly_rate'] ?? '0.00'); ?>">
+                <input type="text" name="monthly_rate" required class="money-input" placeholder="0.00" value="<?php echo htmlspecialchars($editStall['monthly_rate'] ?? '0.00'); ?>">
               </div>
-
               <div class="form-group">
                 <label>Status</label>
                 <select name="status">
@@ -127,23 +121,21 @@ $unread = notifUnreadCount($adminId);
               </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" style="margin-top:15px;">
               <label>Location Description *</label>
               <textarea name="location_description" required rows="2" placeholder="e.g. Ground Floor, Left Wing"><?php echo htmlspecialchars($editStall['location_description'] ?? ''); ?></textarea>
             </div>
 
-            <button class="btn btn-primary" type="submit">
-              <?php echo $editStall ? 'Update Stall' : 'Create Stall'; ?>
+            <button class="btn btn-primary" type="submit" style="width:auto; margin-top:10px;">
+              <?php echo $editStall ? '💾 Update Stall' : '➕ Create Stall'; ?>
             </button>
-
-            <?php if ($editStall): ?>
-              <div style="margin-top:10px;">
-                <a class="btn btn-warning btn-sm" href="stalls.php">Cancel Edit</a>
-              </div>
-            <?php endif; ?>
-
           </form>
         </div>
+      </div>
+
+      <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2>Management</h2>
+        <button class="btn btn-success" style="width:auto;" onclick="toggleForm()">➕ Add New Stall</button>
       </div>
 
       <!-- STALL LIST TABLE -->
@@ -190,15 +182,13 @@ $unread = notifUnreadCount($adminId);
                     </span>
                   </td>
                   <td>
-                    <div style="display:flex; gap:5px;">
-                      <a class="btn btn-warning btn-sm" href="stalls.php?edit_id=<?php echo (int)$row['id']; ?>">Edit</a>
-
-                      <form method="POST"
-                            action="process_stall.php"
-                            onsubmit="return confirm('Delete this stall?');">
+                    <div style="display:flex; gap:8px;">
+                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewStall(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="View Details">👁️</a>
+                      <a class="btn btn-warning btn-sm" href="javascript:void(0)" onclick='editStallInPlace(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="Edit Stall">✏️</a>
+                      <form method="POST" action="process_stall.php" onsubmit="return confirmDelete(event, this)" style="display:inline-block; margin:0;">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                        <button class="btn btn-danger btn-sm" type="submit" title="Delete Stall">🗑️</button>
                       </form>
                     </div>
                   </td>
@@ -218,19 +208,81 @@ $unread = notifUnreadCount($adminId);
 </div>
 
 <script>
-function toggleSidebar() {
-  document.querySelector('.sidebar').classList.toggle('show');
-  document.getElementById('sidebarOverlay').classList.toggle('show');
+function toggleForm() {
+    const f = document.getElementById('modalOverlay');
+    const b = document.body;
+    f.classList.toggle('show');
+    
+    if (f.classList.contains('show')) {
+        b.style.overflow = 'hidden'; 
+    } else {
+        b.style.overflow = 'auto';
+        // Reset form
+        const form = document.getElementById('stallForm');
+        form.reset();
+        form.querySelector('input[name="action"]').value = 'create';
+        form.querySelector('input[name="id"]').value = '0';
+        document.getElementById('modalTitle').textContent = 'Add New Stall';
+        form.querySelector('button[type="submit"]').textContent = '➕ Create Stall';
+    }
 }
 
-function formatMoneyInput(el) {
-  let val = el.value.replace(/,/g, '');
-  if (!isNaN(val) && val !== '') {
-    el.value = parseFloat(val).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  }
+function handleOverlayClick(e) {
+    if (e.target.id === 'modalOverlay') {
+        toggleForm();
+    }
+}
+
+function viewStall(s) {
+  Swal.fire({
+    title: 'Stall Details',
+    html: `
+      <div style="text-align:left; line-height:1.8;">
+        <p><b>Stall Number:</b> ${s.stall_number}</p>
+        <p><b>Name:</b> ${s.stall_name || 'No Name'}</p>
+        <p><b>Location:</b> ${s.location_description}</p>
+        <p><b>Monthly Rate:</b> ₱${Number(s.monthly_rate).toLocaleString()}</p>
+        <p><b>Current Status:</b> ${s.status.toUpperCase()}</p>
+        <p><b>Occupant:</b> ${s.occupant_name || 'Available'}</p>
+      </div>
+    `,
+    icon: 'info',
+    confirmButtonColor: '#ff2d55'
+  });
+}
+
+function editStallInPlace(s) {
+  toggleForm();
+  document.getElementById('modalTitle').textContent = 'Edit Stall Details';
+  const form = document.getElementById('stallForm');
+  form.querySelector('input[name="action"]').value = 'update';
+  form.querySelector('input[name="id"]').value = s.id;
+  
+  form.querySelector('input[name="stall_number"]').value = s.stall_number;
+  form.querySelector('input[name="stall_name"]').value = s.stall_name;
+  form.querySelector('input[name="monthly_rate"]').value = s.monthly_rate;
+  form.querySelector('select[name="status"]').value = s.status;
+  form.querySelector('textarea[name="location_description"]').value = s.location_description;
+  
+  form.querySelector('button[type="submit"]').textContent = '💾 Update Stall';
+  formatMoneyInput(form.querySelector('input[name="monthly_rate"]'));
+}
+
+function confirmDelete(e, form) {
+  e.preventDefault();
+  Swal.fire({
+    title: 'Are you sure?',
+    text: "Deleting this stall will impact active contracts!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, delete it!'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      form.submit();
+    }
+  });
 }
 
 $(document).ready(function() {
@@ -242,6 +294,15 @@ $(document).ready(function() {
   }).each(function() {
     formatMoneyInput(this);
   });
+
+  <?php if ($flash): ?>
+  Swal.fire({
+    icon: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "error" : "success"; ?>',
+    title: '<?php echo (strpos(strtolower($flash), "error") !== false) ? "Oops!" : "Done!"; ?>',
+    text: '<?php echo htmlspecialchars($flash); ?>',
+    confirmButtonColor: '#ff2d55'
+  });
+  <?php endif; ?>
 });
 </script>
 </body>
