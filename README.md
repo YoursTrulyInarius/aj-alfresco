@@ -33,7 +33,32 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 
 ### Notifications and reminders
 
-Loading the tenant dashboard creates applicable due-date and contract-expiry notifications. Notification types are stored as `due_date`, `contract_expiry`, `payment`, or `general`. The admin reminder test page can send rent reminders for 7, 3, or 1 day before the due date and contract-expiry reminders for 90, 60, or 30 days before expiry. SweetAlert2 is used for tenant action confirmations and notification dialogs.
+Loading `tenant/dashboard.php` runs the automatic reminder check for the signed-in tenant. It creates an in-app notification and sends an email when a matching reminder applies. The current active contract is used to calculate the monthly due date from its `start_date`.
+
+#### When emails are sent
+
+- **Rent due:** exactly 7, 3, and 1 day before the next monthly due date.
+- **Overdue rent:** after the current month's due date has passed, when no `paid` payment exists for that contract and `payment_for_month`. The overdue reminder is sent once per unpaid month.
+- **Contract expiry:** exactly 90, 60, and 30 days before the active contract's `end_date`.
+
+Reminder notifications include a milestone key in their message. That key prevents the same tenant and contract milestone from creating another notification or sending another automatic email when the dashboard is loaded again. Payments marked `paid` prevent the overdue email for that month.
+
+#### Where emails are sent
+
+Emails are sent by PHPMailer through the SMTP account configured in `config/smtp.php`. The recipient is the tenant's `users.email` address, and the sender is `SMTP_FROM` with the display name `SMTP_FROM_NAME`. Gmail uses SMTP host `smtp.gmail.com`, port `587`, and STARTTLS. A Gmail app password must be used instead of the normal account password.
+
+#### How to test reminder emails
+
+1. Configure valid SMTP credentials in `config/smtp.php`.
+2. Start Apache and MySQL in XAMPP.
+3. Open `http://localhost/aj-alfresco/admin/test_reminders.php`.
+4. Find an active contract and click the paper-plane button in the desired column:
+    - **Contract Expiry Email**: choose 90, 60, or 30 days.
+    - **OVERDUE RENT EMAIL**: sends an overdue-style email immediately.
+    - **Rent Due Email**: choose 7, 3, or 1 day.
+5. Check the tenant's email inbox and the PHP/Apache error log if sending fails.
+
+The test page is intended for local development and bypasses automatic reminder deduplication. It is available locally without an admin login; requests from other machines still require admin authentication. SweetAlert2 is used for tenant action confirmations and notification dialogs.
 
 Termination requests require administrator approval. A tenant submits a request from the contract page, the request appears in the admin dashboard, and the admin can approve or reject it. Approval changes the contract to `terminated` and makes the stall `available`; rejection keeps the contract active and notifies the tenant.
 
@@ -150,6 +175,16 @@ Change this password immediately after the first login. Admins create tenant acc
 6. Use `admin/test_reminders.php` to test SMTP reminders.
 7. Use PayMongo test keys and test payment methods to verify online checkout.
 
+### 9. Apply database performance updates
+
+For an existing installation, run the migration after importing the database:
+
+```powershell
+& 'C:\xampp\php\php.exe' migrate_db.php
+```
+
+The migration is safe to run again. It updates the payment method column for online payment values and adds indexes used by active-contract lookups, payment-by-month checks, payment history, unread notifications, and reminder notification checks.
+
 ## Configuration reference
 
 - `config/database.php`: MySQL connection settings.
@@ -244,3 +279,9 @@ For local testing without a live payment, use `tenant/simulate_payment_success.p
 - Use HTTPS in production.
 - Replace the seeded admin password immediately.
 - Restrict diagnostic and payment simulation pages to development or remove them before deployment.
+
+## Scaling notes
+
+The application uses indexed queries for the main growing tables. Contracts are indexed by tenant and status; payments are indexed by contract/month/status and tenant/date; notifications are indexed by user/read state and user/type. These indexes keep the common dashboard, payment, and notification lookups efficient as the system grows beyond 100 users.
+
+Reminder email checks currently run when a tenant opens the dashboard. For a larger production deployment, schedule a server-side reminder worker to process active tenants independently of login activity, and keep SMTP sending out of normal browser requests by adding an email queue with retries.

@@ -42,6 +42,7 @@ CREATE TABLE contracts (
   CONSTRAINT fk_contracts_tenant FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_contracts_stall FOREIGN KEY (stall_id) REFERENCES stalls(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+CREATE INDEX idx_contracts_tenant_status ON contracts (tenant_id, status, id);
 
 CREATE TABLE payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -60,6 +61,8 @@ CREATE TABLE payments (
   CONSTRAINT fk_payments_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE,
   CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+CREATE INDEX idx_payments_contract_month_status ON payments (contract_id, payment_for_month, status);
+CREATE INDEX idx_payments_tenant_date ON payments (tenant_id, payment_date, id);
 
 CREATE TABLE notifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -71,6 +74,8 @@ CREATE TABLE notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+CREATE INDEX idx_notifications_user_read ON notifications (user_id, is_read, id);
+CREATE INDEX idx_notifications_user_type ON notifications (user_id, type, id);
 
 -- Default Admin Account
 -- Email: admin@ajalfresco.com
