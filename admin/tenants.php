@@ -201,8 +201,8 @@ $unread = notifUnreadCount($adminId);
                   </td>
                   <td><?php echo $row['stall_no'] ?: '<span style="color:#aaa;">None</span>'; ?></td>
                   <td>
-                    <span class="status-badge <?php echo $row['is_overdue'] ? 'overdue' : ($row['status'] === 'active' ? 'active' : 'overdue'); ?>">
-                      <?php echo $row['is_overdue'] ? 'OVERDUE' : strtoupper($row['status']); ?>
+                    <span class="status-badge <?php echo (int)$row['is_overdue'] === 1 ? 'overdue' : ($row['status'] === 'active' ? 'active' : 'overdue'); ?>">
+                      <?php echo (int)$row['is_overdue'] === 1 ? 'OVERDUE' : strtoupper($row['status']); ?>
                     </span>
                   </td>
                   <td>
@@ -363,8 +363,9 @@ function viewTenant(t) {
   const initials = escapeHtml((t.full_name || 'T').trim().split(/\s+/).map(function (part) { return part[0]; }).join('').substring(0, 2).toUpperCase());
   const business = escapeHtml(t.business_name || 'No business recorded');
   const businessType = escapeHtml(t.business_type || '');
-  const displayStatus = t.is_overdue ? 'OVERDUE' : (t.status || '').toUpperCase();
-  const statusClass = t.is_overdue ? 'overdue' : (t.status || '');
+  const isOverdue = Number(t.is_overdue) === 1;
+  const displayStatus = isOverdue ? 'OVERDUE' : (t.status || '').toUpperCase();
+  const statusClass = isOverdue ? 'overdue' : (t.status || '');
   const status = escapeHtml(displayStatus);
 
   Swal.fire({
