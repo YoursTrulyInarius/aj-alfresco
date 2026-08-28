@@ -16,6 +16,9 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 - Added a rerunnable `migrate_db.php` database performance migration.
 - Restricted tenant renewal requests to the final 30 days of an active contract.
 - Added a SweetAlert message for renewal attempts made too early and server-side enforcement of the same rule.
+- Added consistent `OVERDUE` status display in the admin tenant list and tenant profile dialog.
+- Replaced tenant table emoji actions with accessible Font Awesome icon buttons and enhanced the tenant profile dialog.
+- Standardized PHP/MySQL application time handling and anchored the tenant dashboard countdown to server time.
 
 ## Features
 
@@ -31,7 +34,7 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 - View payment reports
 - Filter and mark notifications as read
 - Review tenant termination requests and approve or reject them from the dashboard
-- Force-send rent-due and contract-expiry email reminders from `admin/test_reminders.php`
+- Force-send rent-due, overdue-rent, and contract-expiry email reminders from `admin/test_reminders.php`
 
 ### Tenant portal
 
@@ -207,6 +210,8 @@ The migration is safe to run again. It updates the payment method column for onl
 - `config/smtp.php`: SMTP host, port, account, app password, sender address, and sender name.
 - `sql/database.sql`: Database schema and default administrator seed.
 - `includes/functions.php`: Shared authentication, database, notification, and email helpers.
+
+The application uses `Asia/Manila` consistently for PHP and the MySQL connection. Server-generated dates control payment, overdue, renewal, and reminder decisions. The tenant dashboard countdown is anchored to server time, so changing the local PC clock does not create a conflicting countdown.
 
 The tenant portal uses the shared admin-style navigation shell across the dashboard, contract, payment, notification, and password pages. Contract, payment, and password forms include responsive card layouts for desktop and mobile screens.
 

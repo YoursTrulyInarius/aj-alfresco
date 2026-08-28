@@ -16,7 +16,21 @@ if ($editId > 0) {
     $editTenant = $stmt->get_result()->fetch_assoc();
 }
 
-$query = "SELECT u.*, (SELECT stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as stall_no 
+$query = "SELECT u.*, (SELECT stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as stall_no,
+          EXISTS (
+            SELECT 1
+            FROM contracts overdue_contract
+            WHERE overdue_contract.tenant_id = u.id
+              AND overdue_contract.status = 'active'
+              AND overdue_contract.start_date <= CURDATE()
+              AND DAY(CURDATE()) > LEAST(DAY(overdue_contract.start_date), DAY(LAST_DAY(CURDATE())))
+              AND NOT EXISTS (
+                SELECT 1 FROM payments overdue_payment
+                WHERE overdue_payment.contract_id = overdue_contract.id
+                  AND overdue_payment.payment_for_month = DATE_FORMAT(CURDATE(), '%Y-%m')
+                  AND overdue_payment.status = 'paid'
+              )
+          ) AS is_overdue
           FROM users u WHERE u.role='tenant'";
 if ($search) {
     $query .= " AND (u.full_name LIKE '%$search%' OR u.business_name LIKE '%$search%')";
@@ -87,6 +101,26 @@ $unread = notifUnreadCount($adminId);
     #tenantFormContainer { padding: 0 !important; border: none !important; box-shadow: none !important; margin: 0 !important; }
     .modal-header { padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
     .modal-header h2 { margin: 0; color: #333; font-size: 1.5rem; }
+    .tenant-profile-popup { padding: 0 !important; overflow: hidden; border-radius: 18px !important; }
+    .tenant-profile { text-align: left; color: var(--text); }
+    .tenant-profile-header { display: flex; align-items: center; gap: 16px; padding: 24px 28px; background: linear-gradient(135deg, #fff1f7, #fff); border-bottom: 1px solid var(--border); }
+    .tenant-profile-avatar { width: 58px; height: 58px; flex: 0 0 58px; display: grid; place-items: center; border-radius: 16px; color: #fff; background: var(--primary); font-size: 22px; font-weight: 800; box-shadow: 0 8px 18px var(--primary-shadow); }
+    .tenant-profile-header h2 { margin: 0 0 4px; color: var(--secondary); font-size: 20px; line-height: 1.2; }
+    .tenant-profile-header p { margin: 0; color: var(--muted); font-size: 13px; }
+    .tenant-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; padding: 24px 28px 26px; }
+    .tenant-profile-item { min-width: 0; }
+    .tenant-profile-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .tenant-profile-value { display: block; overflow-wrap: anywhere; color: var(--secondary); font-size: 14px; font-weight: 600; line-height: 1.45; }
+    .tenant-profile-value.status { display: inline-flex; width: fit-content; }
+    .tenant-profile-item.full { grid-column: 1 / -1; }
+    .tenant-profile-popup .swal2-actions { margin: 0; padding: 0 28px 24px; justify-content: flex-end; }
+    .tenant-profile-popup .swal2-confirm { margin: 0 !important; border-radius: 9px; padding: 10px 20px; font-size: 13px; font-weight: 700; }
+    @media (max-width: 560px) {
+      .tenant-profile-grid { grid-template-columns: 1fr; gap: 16px; padding: 20px; }
+      .tenant-profile-header { padding: 20px; }
+      .tenant-profile-item.full { grid-column: auto; }
+      .tenant-profile-popup .swal2-actions { padding: 0 20px 20px; }
+    }
   </style>
 </head>
 <body>
@@ -167,8 +201,8 @@ $unread = notifUnreadCount($adminId);
                   </td>
                   <td><?php echo $row['stall_no'] ?: '<span style="color:#aaa;">None</span>'; ?></td>
                   <td>
-                    <span class="status-badge <?php echo ($row['status'] === 'active' ? 'active' : 'overdue'); ?>">
-                      <?php echo strtoupper($row['status']); ?>
+                    <span class="status-badge <?php echo $row['is_overdue'] ? 'overdue' : ($row['status'] === 'active' ? 'active' : 'overdue'); ?>">
+                      <?php echo $row['is_overdue'] ? 'OVERDUE' : strtoupper($row['status']); ?>
                     </span>
                   </td>
                   <td>
@@ -320,22 +354,43 @@ function toggleForm() {
 }
 
 function viewTenant(t) {
+  const escapeHtml = function (value) {
+    return String(value ?? '').replace(/[&<>'"]/g, function (character) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character];
+    });
+  };
+  const name = escapeHtml(t.full_name || 'Tenant');
+  const initials = escapeHtml((t.full_name || 'T').trim().split(/\s+/).map(function (part) { return part[0]; }).join('').substring(0, 2).toUpperCase());
+  const business = escapeHtml(t.business_name || 'No business recorded');
+  const businessType = escapeHtml(t.business_type || '');
+  const displayStatus = t.is_overdue ? 'OVERDUE' : (t.status || '').toUpperCase();
+  const statusClass = t.is_overdue ? 'overdue' : (t.status || '');
+  const status = escapeHtml(displayStatus);
+
   Swal.fire({
-    title: 'Tenant Profile',
+    title: '',
     html: `
-      <div style="text-align:left; line-height:1.8;">
-        <p><b>Name:</b> ${t.full_name}</p>
-        <p><b>Business:</b> ${t.business_name} (${t.business_type})</p>
-        <p><b>Stall:</b> ${t.stall_no || 'None'}</p>
-        <p><b>Email:</b> ${t.email}</p>
-        <p><b>Phone:</b> ${t.phone}</p>
-        <p><b>Secondary Contact:</b> ${t.secondary_phone || 'None'}</p>
-        <p><b>Address:</b> ${t.address}</p>
-        <p><b>Status:</b> ${t.status.toUpperCase()}</p>
+      <div class="tenant-profile">
+        <div class="tenant-profile-header">
+          <div class="tenant-profile-avatar">${initials}</div>
+          <div><h2>${name}</h2><p>${business}${businessType ? ` · ${businessType}` : ''}</p></div>
+        </div>
+        <div class="tenant-profile-grid">
+          <div class="tenant-profile-item"><span class="tenant-profile-label">Stall</span><span class="tenant-profile-value">${escapeHtml(t.stall_no || 'Unassigned')}</span></div>
+          <div class="tenant-profile-item"><span class="tenant-profile-label">Status</span><span class="tenant-profile-value status status-badge ${escapeHtml(statusClass)}">${status}</span></div>
+          <div class="tenant-profile-item"><span class="tenant-profile-label">Email</span><span class="tenant-profile-value">${escapeHtml(t.email || 'Not provided')}</span></div>
+          <div class="tenant-profile-item"><span class="tenant-profile-label">Phone</span><span class="tenant-profile-value">${escapeHtml(t.phone || 'Not provided')}</span></div>
+          <div class="tenant-profile-item"><span class="tenant-profile-label">Secondary contact</span><span class="tenant-profile-value">${escapeHtml(t.secondary_phone || 'Not provided')}</span></div>
+          <div class="tenant-profile-item full"><span class="tenant-profile-label">Address</span><span class="tenant-profile-value">${escapeHtml(t.address || 'Not provided')}</span></div>
+        </div>
       </div>
     `,
-    icon: 'info',
-    confirmButtonColor: '#ff2d55'
+    width: 560,
+    showCloseButton: true,
+    showConfirmButton: true,
+    confirmButtonText: 'Close',
+    confirmButtonColor: '#d63384',
+    customClass: { popup: 'tenant-profile-popup' }
   });
 }
 

@@ -43,6 +43,7 @@ $unread = notifUnreadCount($tenantId);
 
 // Due date calculation (Realtime Target)
 $dueTargetJS = "";
+$serverNowJS = time() * 1000;
 if ($contract) {
     $today = new DateTime('today');
     $nextDue = new DateTime($contract['start_date']);
@@ -206,10 +207,12 @@ function toggleSidebar() {
 // REAL-TIME COUNTDOWN LOGIC
 const targetDateStr = "<?php echo $dueTargetJS; ?>";
 if (targetDateStr) {
-    const targetDate = new Date(targetDateStr).getTime();
+  const targetDate = new Date(targetDateStr.replace(' ', 'T') + '+08:00').getTime();
+  const serverNowAtLoad = <?php echo (int)$serverNowJS; ?>;
+  const browserMonotonicStart = performance.now();
     
     const x = setInterval(function() {
-        const now = new Date().getTime();
+    const now = serverNowAtLoad + (performance.now() - browserMonotonicStart);
         const distance = targetDate - now;
 
         const days = Math.floor(distance / (1000 * 60 * 60 * 24));
