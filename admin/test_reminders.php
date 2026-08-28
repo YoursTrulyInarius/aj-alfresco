@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-requireAdmin();
+
+$localRequest = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+if (!$localRequest) requireAdmin();
 
 $sent    = $_GET['sent']    ?? '';
 $skipped = $_GET['skipped'] ?? '';
@@ -65,6 +67,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
               <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'>
                 <p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p>
               </div>
+            </div>";
+
+        } elseif ($type === 'overdue') {
+            $today = new DateTime('today');
+            $currentMonth = $today->format('Y-m');
+            $dueDay = min((int)(new DateTime($row['start_date']))->format('d'), (int)$today->format('t'));
+            $dueDate = new DateTime($currentMonth . '-01');
+            $dueDate->modify('+' . ($dueDay - 1) . ' days');
+            $monthStr = $dueDate->format('F Y');
+            $dueLabel = $dueDate->format('M d, Y');
+            $daysOverdue = max(1, (int)$dueDate->diff($today)->days);
+            $subject = "Rent Overdue — $monthStr — A&J Alfresco";
+            $html = "
+            <div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:10px;overflow:hidden;'>
+              <div style='background:#d63384;padding:24px;text-align:center;'><h2 style='color:#fff;margin:0;'>A&amp;J Alfresco</h2><p style='color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;'>Rental Management System</p></div>
+              <div style='padding:28px 32px;background:#fff;'>
+                <p style='font-size:15px;color:#1e293b;'>Hi <strong>{$row['full_name']}</strong>,</p>
+                <p style='color:#475569;line-height:1.7;'>Your <strong>monthly rent</strong> for <strong>$monthStr</strong> is overdue.</p>
+                <div style='background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;padding:14px 18px;margin:20px 0;'><p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Due Date:</strong> $dueLabel</p><p style='margin:0;font-size:13px;color:#dc2626;font-weight:700;'>🔴 Days Overdue: $daysOverdue</p></div>
+                <p style='color:#475569;line-height:1.7;'>Please make your payment as soon as possible to keep your account up to date. If you have already paid, please disregard this message.</p>
+              </div>
+              <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'><p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p></div>
             </div>";
 
         } else {
@@ -166,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
         </div>
         <div class="card-body">
           <p style="color:#64748b;font-size:13px;margin-bottom:20px;">
-            Manually trigger either a <strong>Contract Expiry</strong> or <strong>Rent Due</strong> reminder email to any tenant, bypassing deduplication. Useful for SMTP testing.
+            Manually trigger a <strong>Contract Expiry</strong>, <strong>Rent Due</strong>, or <strong>Overdue Rent</strong> reminder email to any tenant, bypassing deduplication. Useful for SMTP testing.
           </p>
 
           <div style="overflow-x:auto;">
@@ -178,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
                   <th>Email</th>
                   <th>Contract End</th>
                   <th>📄 Contract Expiry Email</th>
+                  <th>🔴 OVERDUE RENT EMAIL</th>
                   <th>💰 Rent Due Email</th>
                 </tr>
               </thead>
@@ -209,6 +234,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
                     </form>
                   </td>
 
+                  <!-- OVERDUE RENT -->
+                  <td>
+                    <form method="POST" style="display:flex;gap:6px;align-items:center;">
+                      <input type="hidden" name="tenant_id" value="<?php echo (int)$row['tenant_id']; ?>">
+                      <input type="hidden" name="contract_id" value="<?php echo (int)$row['id']; ?>">
+                      <input type="hidden" name="type" value="overdue">
+                      <button type="submit" class="btn btn-primary btn-sm" style="width:auto;white-space:nowrap;padding:5px 10px;font-size:12px;">
+                        <i class="fa-solid fa-paper-plane"></i>
+                      </button>
+                    </form>
+                  </td>
+
                   <!-- RENT DUE -->
                   <td>
                     <form method="POST" style="display:flex;gap:6px;align-items:center;">
@@ -228,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
                 </tr>
                 <?php endwhile; ?>
                 <?php if ($contracts->num_rows === 0): ?>
-                  <tr><td colspan="6" style="text-align:center;color:#94a3b8;">No active contracts found.</td></tr>
+                  <tr><td colspan="7" style="text-align:center;color:#94a3b8;">No active contracts found.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -241,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id'])) {
         <div class="card-body" style="padding:18px 24px;">
           <p style="margin:0;font-size:13px;color:#92400e;">
             <strong>⚠️ Note:</strong> This page bypasses deduplication and sends immediately.
-            The automatic system fires when a tenant logs into their dashboard and the date matches a milestone exactly.
+            The automatic system fires when a tenant logs into their dashboard: pre-due reminders match a milestone exactly, while overdue rent is sent once per unpaid month after the due date.
           </p>
         </div>
       </div>

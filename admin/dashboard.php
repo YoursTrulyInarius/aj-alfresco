@@ -88,6 +88,7 @@ if ($requestResult) {
         <li><a href="payments.php">Payments</a></li>
         <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
         <li><a href="reports.php">Reports</a></li>
+         <li><a href="test_reminders.php">Test Email Reminders</a></li>
       </ul>
       <div class="sidebar-footer">
         <a href="logout.php">Logout</a>

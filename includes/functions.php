@@ -106,8 +106,62 @@ function tenantAutoReminders($tenantId) {
     $contract = $stmt->get_result()->fetch_assoc();
     if (!$contract) return;
 
-    // (A) Rent due reminder: based on the start date, find the NEXT due date
     $today = new DateTime('today');
+    $currentMonth = $today->format('Y-m');
+    $startDate = new DateTime($contract['start_date']);
+    $dueDay = min((int)(new DateTime($contract['start_date']))->format('d'), (int)$today->format('t'));
+    $currentDue = new DateTime($currentMonth . '-01');
+    $currentDue->modify('+' . ($dueDay - 1) . ' days');
+
+    if ($startDate <= $today && $currentDue < $today) {
+        $paidStmt = $conn->prepare("SELECT id FROM payments WHERE contract_id=? AND payment_for_month=? AND status='paid' LIMIT 1");
+        $paidStmt->bind_param("is", $contract['id'], $currentMonth);
+        $paidStmt->execute();
+
+        if ($paidStmt->get_result()->num_rows === 0) {
+            $monthStr = $currentDue->format('F Y');
+            $daysOverdue = (int)$currentDue->diff($today)->days;
+            $milestoneKey = "overdue|$currentMonth";
+            $chkOverdue = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
+            $likeOverdue = "%$milestoneKey%";
+            $chkOverdue->bind_param("is", $tenantId, $likeOverdue);
+            $chkOverdue->execute();
+
+            if ($chkOverdue->get_result()->num_rows === 0) {
+                createNotification(
+                    $tenantId,
+                    "Rent Overdue — $monthStr",
+                    "[$milestoneKey] Your rent for $monthStr is overdue by $daysOverdue day(s). Please make your payment as soon as possible.",
+                    "due_date"
+                );
+
+                $uStmtOverdue = $conn->prepare("SELECT full_name, email FROM users WHERE id=? LIMIT 1");
+                $uStmtOverdue->bind_param("i", $tenantId);
+                $uStmtOverdue->execute();
+                $userOverdue = $uStmtOverdue->get_result()->fetch_assoc();
+
+                if ($userOverdue && !empty($userOverdue['email'])) {
+                    $subjectOverdue = "Rent Overdue — $monthStr — A&J Alfresco";
+                    $dueLabel = $currentDue->format('M d, Y');
+                    $htmlOverdue = "
+                    <div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:10px;overflow:hidden;'>
+                      <div style='background:#d63384;padding:24px;text-align:center;'><h2 style='color:#fff;margin:0;'>A&amp;J Alfresco</h2><p style='color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;'>Rental Management System</p></div>
+                      <div style='padding:28px 32px;background:#fff;'>
+                        <p style='font-size:15px;color:#1e293b;'>Hi <strong>{$userOverdue['full_name']}</strong>,</p>
+                        <p style='color:#475569;line-height:1.7;'>Your <strong>monthly rent</strong> for <strong>$monthStr</strong> is overdue.</p>
+                        <div style='background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;padding:14px 18px;margin:20px 0;'><p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Due Date:</strong> $dueLabel</p><p style='margin:0;font-size:13px;color:#dc2626;font-weight:700;'>🔴 Days Overdue: $daysOverdue</p></div>
+                        <p style='color:#475569;line-height:1.7;'>Please make your payment as soon as possible to keep your account up to date. If you have already paid, please disregard this message.</p>
+                      </div>
+                      <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'><p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p></div>
+                    </div>";
+
+                    sendMail($userOverdue['email'], $userOverdue['full_name'], $subjectOverdue, $htmlOverdue);
+                }
+            }
+        }
+    }
+
+    // (A) Rent due reminder: based on the start date, find the NEXT due date
     $nextDue = new DateTime($contract['start_date']);
     
     // Increment by 1 month until we hit the first future due date
