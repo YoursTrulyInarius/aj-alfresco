@@ -21,13 +21,20 @@ function notifyActiveAdmin($title, $message) {
 if ($action === 'request_renewal') {
     $id = (int)($_POST['id'] ?? 0);
 
-    $stmt = $conn->prepare("SELECT id FROM contracts WHERE id=? AND tenant_id=? AND status='active' LIMIT 1");
+    $stmt = $conn->prepare("SELECT id, end_date FROM contracts WHERE id=? AND tenant_id=? AND status='active' LIMIT 1");
     $stmt->bind_param("ii", $id, $tenantId);
     $stmt->execute();
-    $ok = $stmt->get_result()->num_rows === 1;
+    $renewalContract = $stmt->get_result()->fetch_assoc();
+    $ok = false;
+    if ($renewalContract) {
+        $today = new DateTime('today');
+        $endDate = new DateTime($renewalContract['end_date']);
+        $daysLeft = $today <= $endDate ? (int)$today->diff($endDate)->days : -1;
+        $ok = $daysLeft >= 0 && $daysLeft <= 30;
+    }
 
     if (!$ok) {
-        $_SESSION['flash'] = "Renewal request not allowed.";
+        $_SESSION['flash'] = "Renewal is available only when your contract has 30 days or less remaining.";
         header("Location: contract.php");
         exit();
     }

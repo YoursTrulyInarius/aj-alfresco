@@ -4,6 +4,19 @@
 
 A&J Alfresco is a web-based rental management system for food-park operations. It helps administrators manage stalls, tenants, contracts, payments, receipts, reports, and notifications, while tenants can view their rental information and pay online.
 
+## Version History
+
+### 2026-08-28
+
+- Added automatic overdue-rent detection and email reminders for unpaid monthly rent.
+- Added the `OVERDUE RENT EMAIL` option to the local reminder testing page.
+- Allowed local access to the reminder testing page without requiring admin login; remote requests remain protected.
+- Added SMTP email behavior and reminder-testing instructions to this README.
+- Added database indexes for contracts, payments, and notifications to support 100+ users.
+- Added a rerunnable `migrate_db.php` database performance migration.
+- Restricted tenant renewal requests to the final 30 days of an active contract.
+- Added a SweetAlert message for renewal attempts made too early and server-side enforcement of the same rule.
+
 ## Features
 
 ### Admin portal
@@ -40,6 +53,8 @@ Loading `tenant/dashboard.php` runs the automatic reminder check for the signed-
 - **Rent due:** exactly 7, 3, and 1 day before the next monthly due date.
 - **Overdue rent:** after the current month's due date has passed, when no `paid` payment exists for that contract and `payment_for_month`. The overdue reminder is sent once per unpaid month.
 - **Contract expiry:** exactly 90, 60, and 30 days before the active contract's `end_date`.
+
+Tenant renewal requests are available only during the final 30 days of an active contract. The contract page displays a SweetAlert when a tenant tries to request renewal too early, and the processing endpoint enforces the same rule server-side.
 
 Reminder notifications include a milestone key in their message. That key prevents the same tenant and contract milestone from creating another notification or sending another automatic email when the dashboard is loaded again. Payments marked `paid` prevent the overdue email for that month.
 

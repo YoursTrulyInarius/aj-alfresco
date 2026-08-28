@@ -20,8 +20,15 @@ $stmt->execute();
 $contract = $stmt->get_result()->fetch_assoc();
 $unread = notifUnreadCount($tenantId);
 $terminationPending = false;
+$renewalDaysLeft = null;
+$renewalEligible = false;
 
 if ($contract) {
+  $today = new DateTime('today');
+  $endDate = new DateTime($contract['end_date']);
+  $renewalDaysLeft = $today <= $endDate ? (int)$today->diff($endDate)->days : -1;
+  $renewalEligible = $contract['status'] === 'active' && $renewalDaysLeft >= 0 && $renewalDaysLeft <= 30;
+
   $admin = $conn->query("SELECT id FROM users WHERE role='admin' AND status='active' ORDER BY id LIMIT 1")->fetch_assoc();
   if ($admin) {
     $likeMessage = "%Contract ID: " . (int)$contract['id'] . "%";
@@ -182,7 +189,7 @@ if ($contract) {
               <div class="contract-action-buttons">
                 <a class="btn btn-primary btn-sm" href="../admin/print_contract.php?id=<?php echo (int)$contract['id']; ?>" target="_blank" rel="noopener">View PDF</a>
                 <?php if ($contract['status'] === 'active' && !$terminationPending): ?>
-                  <form method="POST" action="process_contract.php" class="contract-confirm-form" data-action="renewal">
+                  <form method="POST" action="process_contract.php" class="contract-confirm-form" data-action="renewal" data-renewal-eligible="<?php echo $renewalEligible ? '1' : '0'; ?>" data-renewal-days="<?php echo (int)$renewalDaysLeft; ?>">
                     <input type="hidden" name="action" value="request_renewal">
                     <input type="hidden" name="id" value="<?php echo (int)$contract['id']; ?>">
                     <button class="btn btn-success btn-sm" type="submit">Request renewal</button>
@@ -215,6 +222,20 @@ document.querySelectorAll('.contract-confirm-form').forEach(function (form) {
     event.preventDefault();
 
     const isRenewal = form.dataset.action === 'renewal';
+    if (isRenewal && form.dataset.renewalEligible !== '1') {
+      const daysLeft = Number(form.dataset.renewalDays);
+      Swal.fire({
+        title: 'Renewal not available yet',
+        text: daysLeft >= 0
+          ? 'You can apply for renewal when your contract has 30 days or less remaining.'
+          : 'This contract has already ended and cannot be renewed from this page.',
+        icon: 'info',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#64748b'
+      });
+      return;
+    }
+
     Swal.fire({
       title: isRenewal ? 'Request contract renewal?' : 'Request contract termination?',
       text: isRenewal
