@@ -237,6 +237,8 @@ html, body { overflow-x: hidden; max-width: 100%; }
 .btn-success:hover { background: #10b981; }
 .btn-danger  { color: #fff; background: #dc2626; }
 .btn-danger:hover  { background: #ef4444; }
+.btn-info { color: var(--secondary); background: var(--surface); border: 1px solid var(--secondary); }
+.btn-info:hover { color: #fff; background: var(--secondary); }
 .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: var(--radius-xs); }
 
 /* Table Action Buttons */

@@ -122,7 +122,7 @@ $unread = notifUnreadCount($adminId);
         <h1>Manage Tenants</h1>
       </div>
       <div class="header-right" style="display:flex; align-items:center; gap:15px;">
-        <button class="btn btn-success" style="width:auto; padding: 10px 20px; font-weight:bold; border-radius:12px; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);" onclick="toggleForm()">➕ Add New Tenant</button>
+        <button class="btn btn-success" style="width:auto; padding: 10px 20px; font-weight:bold; border-radius:12px; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);" onclick="toggleForm()"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Add New Tenant</button>
         <div class="user-info">
           <div class="avatar"></div>
           <span><?php echo htmlspecialchars($_SESSION['full_name']); ?></span>
@@ -172,13 +172,13 @@ $unread = notifUnreadCount($adminId);
                     </span>
                   </td>
                   <td>
-                    <div style="display:flex; gap:8px;">
-                      <a class="btn btn-info btn-sm" href="javascript:void(0)" onclick='viewTenant(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="View Details">👁️</a>
-                      <a class="btn btn-warning btn-sm" href="javascript:void(0)" onclick='editTenantInPlace(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="Edit Tenant">✏️</a>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                      <a class="btn btn-info btn-action" href="javascript:void(0)" onclick='viewTenant(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="View tenant details" aria-label="View tenant details"><i class="fa-solid fa-eye" aria-hidden="true"></i></a>
+                      <a class="btn btn-warning btn-action" href="javascript:void(0)" onclick='editTenantInPlace(<?php echo htmlspecialchars(json_encode($row)); ?>)' title="Edit tenant" aria-label="Edit tenant"><i class="fa-solid fa-pen" aria-hidden="true"></i></a>
                       <form method="POST" action="process_tenant.php" onsubmit="return confirmDelete(event, this)" style="display:inline-block; margin:0;">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo (int)$row['id']; ?>">
-                        <button class="btn btn-danger btn-sm" type="submit" title="Delete Tenant">🗑️</button>
+                        <button class="btn btn-danger btn-action" type="submit" title="Delete tenant" aria-label="Delete tenant"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
                       </form>
                     </div>
                   </td>
