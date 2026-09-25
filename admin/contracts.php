@@ -12,6 +12,8 @@ $tenants = $conn->query("SELECT id, full_name, business_name FROM users WHERE ro
 
 // Available stalls dropdown
 $stalls = $conn->query("SELECT id, stall_number, monthly_rate FROM stalls WHERE status='available' ORDER BY stall_number");
+$editTenants = $conn->query("SELECT id, full_name, business_name FROM users WHERE role='tenant' ORDER BY full_name");
+$editStalls = $conn->query("SELECT id, stall_number, monthly_rate, status FROM stalls ORDER BY stall_number");
 
 // Contract list
 $query = "SELECT c.*, 
@@ -119,7 +121,7 @@ $unread = notifUnreadCount($adminId);
 
               <div class="form-group">
                 <label>Monthly Rent (PHP) *</label>
-                <input type="number" name="monthly_rent" step="0.01" required id="rentInput" placeholder="0.00">
+                <input type="number" name="monthly_rent" step="0.01" required id="rentInput" placeholder="0.00" readonly aria-readonly="true" autocomplete="off" onkeydown="return false" onpaste="return false" ondrop="return false">
               </div>
 
               <div class="form-group">
@@ -180,6 +182,7 @@ $unread = notifUnreadCount($adminId);
             </thead>
             <tbody>
               <?php while($c = $contracts->fetch_assoc()): ?>
+                <?php $displayStatus = contractDisplayStatus($c['status'], $c['end_date']); ?>
                 <tr>
                   <td>
                     <strong><?php echo htmlspecialchars($c['tenant_name']); ?></strong><br>
@@ -198,18 +201,21 @@ $unread = notifUnreadCount($adminId);
                     <small>Dep: <?php echo formatMoney($c['deposit_amount']); ?></small>
                   </td>
                   <td>
-                    <span class="status-badge <?php echo $c['status'] === 'active' ? 'active' : 'overdue'; ?>">
-                      <?php echo strtoupper($c['status']); ?>
+                    <span class="status-badge <?php echo htmlspecialchars($displayStatus); ?>">
+                      <?php echo strtoupper(str_replace('_', ' ', $displayStatus)); ?>
                     </span>
                   </td>
                   <td>
                     <div style="display:flex; gap:8px; align-items:center;">
                       <a class="btn btn-primary btn-sm btn-action" href="print_contract.php?id=<?php echo (int)$c['id']; ?>" target="_blank" title="View PDF"><i class="fa-solid fa-eye"></i></a>
-                      <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')" style="display:inline-block; margin:0; line-height: 0;">
-                        <input type="hidden" name="action" value="terminate">
-                        <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
-                        <button class="btn btn-danger btn-sm btn-action" type="submit" title="End Lease"><i class="fa-solid fa-trash"></i></button>
-                      </form>
+                      <button class="btn btn-warning btn-sm btn-action" type="button" onclick='editContract(<?php echo htmlspecialchars(json_encode($c), ENT_QUOTES, "UTF-8"); ?>)' title="Edit Contract"><i class="fa-solid fa-pen"></i></button>
+                      <?php if ($c['status'] !== 'terminated'): ?>
+                        <form method="POST" action="process_contract.php" onsubmit="return confirmAction(event, this, 'terminate')" style="display:inline-block; margin:0; line-height: 0;">
+                          <input type="hidden" name="action" value="terminate">
+                          <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
+                          <button class="btn btn-danger btn-sm btn-action" type="submit" title="Terminate Contract"><i class="fa-solid fa-ban"></i></button>
+                        </form>
+                      <?php endif; ?>
                     </div>
                   </td>
                 </tr>
@@ -221,6 +227,81 @@ $unread = notifUnreadCount($adminId);
           </table>
         </div>
       </div>
+
+      <div id="contractEditOverlay" class="modal-overlay" onclick="handleContractOverlayClick(event)">
+        <div class="modal-content">
+          <div class="modal-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:20px;">
+            <h2>Edit Contract</h2>
+            <span style="font-size:30px; cursor:pointer;" onclick="closeContractEditor()">&times;</span>
+          </div>
+          <form method="POST" action="process_contract.php" id="contractEditForm">
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="id" id="editContractId">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:20px;">
+              <div class="form-group">
+                <label>Select Tenant *</label>
+                <select name="tenant_id" id="editTenantSelect" required>
+                  <?php while($t = $editTenants->fetch_assoc()): ?>
+                    <option value="<?php echo (int)$t['id']; ?>"><?php echo htmlspecialchars($t['full_name'] . " (" . $t['business_name'] . ")"); ?></option>
+                  <?php endwhile; ?>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Select Stall *</label>
+                <select name="stall_id" id="editStallSelect" required>
+                  <?php while($s = $editStalls->fetch_assoc()): ?>
+                    <option value="<?php echo (int)$s['id']; ?>" data-rate="<?php echo htmlspecialchars($s['monthly_rate']); ?>">
+                      <?php echo htmlspecialchars($s['stall_number'] . ($s['status'] !== 'available' ? ' (' . $s['status'] . ')' : '')); ?>
+                    </option>
+                  <?php endwhile; ?>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Monthly Rent (PHP)</label>
+                <input type="number" id="editRentInput" step="0.01" readonly aria-readonly="true" tabindex="-1">
+              </div>
+              <div class="form-group">
+                <label>Contract Status *</label>
+                <select name="status" id="editStatusSelect" required>
+                  <option value="active">Active</option>
+                  <option value="pending_renewal">Pending Renewal</option>
+                  <option value="terminated">Terminated</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Security Deposit (PHP) *</label>
+                <input type="number" name="deposit_amount" id="editDepositInput" step="0.01" required>
+              </div>
+              <div class="form-group">
+                <label>Duration Type *</label>
+                <select name="duration_type" id="editDurationType" required>
+                  <option value="6 months">6 Months</option>
+                  <option value="1 year">1 Year</option>
+                  <option value="2 years">2 Years</option>
+                  <option value="3 years">3 Years</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Start Date *</label>
+                <input type="date" name="start_date" id="editStartDate" required>
+              </div>
+              <div class="form-group">
+                <label>End Date *</label>
+                <input type="date" name="end_date" id="editEndDate" required>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:20px;">
+              <label>Special Terms & Conditions</label>
+              <textarea name="terms" id="editTermsInput" rows="4" placeholder="Optional notes about the lease..."></textarea>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:10px;">
+              <button class="btn btn-secondary" type="button" onclick="closeContractEditor()">Cancel</button>
+              <button class="btn btn-primary" type="submit" style="width:auto;">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -229,6 +310,27 @@ $unread = notifUnreadCount($adminId);
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('show');
   document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+function editContract(contract) {
+  document.getElementById('editContractId').value = contract.id;
+  $('#editTenantSelect').val(contract.tenant_id).trigger('change');
+  $('#editStallSelect').val(contract.stall_id).trigger('change');
+  document.getElementById('editStatusSelect').value = contract.status;
+  document.getElementById('editDepositInput').value = contract.deposit_amount;
+  document.getElementById('editDurationType').value = contract.duration_type;
+  document.getElementById('editStartDate').value = contract.start_date;
+  document.getElementById('editEndDate').value = contract.end_date;
+  document.getElementById('editTermsInput').value = contract.terms || '';
+  document.getElementById('contractEditOverlay').classList.add('show');
+}
+
+function closeContractEditor() {
+  document.getElementById('contractEditOverlay').classList.remove('show');
+}
+
+function handleContractOverlayClick(event) {
+  if (event.target.id === 'contractEditOverlay') closeContractEditor();
 }
 
 function viewContract(c) {
@@ -326,7 +428,11 @@ $(document).ready(function() {
   $('#tenantSelect').select2({ placeholder: "-- Search Tenant --", allowClear: true });
   $('#stallSelect').select2({ placeholder: "-- Choose Available Stall --", allowClear: true }).on('change', function() {
     const rate = $(this).find(':selected').data('rate');
-    if (rate) $('#rentInput').val(rate);
+    $('#rentInput').val(rate || '').prop('readonly', true);
+  });
+  $('#editTenantSelect, #editStallSelect').select2({ dropdownParent: $('#contractEditOverlay') });
+  $('#editStallSelect').on('change', function() {
+    $('#editRentInput').val($(this).find(':selected').data('rate') || '');
   });
 });
 

@@ -47,6 +47,20 @@ function formatDate($date) {
     return date('M d, Y', strtotime($date));
 }
 
+function contractDisplayStatus($status, $endDate) {
+    if ($status === 'pending_renewal') return 'pending_renewal';
+    if ($status === 'terminated') return 'terminated';
+
+    if ($status === 'active' && $endDate) {
+        $today = new DateTime('today');
+        $contractEnd = new DateTime($endDate);
+        $daysLeft = $today <= $contractEnd ? (int)$today->diff($contractEnd)->days : -1;
+        if ($daysLeft >= 0 && $daysLeft <= 30) return 'for_renewal';
+    }
+
+    return 'active';
+}
+
 function generateReceiptNumber() {
     return 'AJA-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
 }

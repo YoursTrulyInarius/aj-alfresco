@@ -547,8 +547,12 @@ table tbody tr:last-child td { border-bottom: none; }
   border: 1px solid rgba(190,18,60,.12);
 }
 .status-badge.pending_renewal {
-  background: var(--comp-soft); color: #92400e;
-  border: 1px solid rgba(245,158,11,.2);
+  background: #fef9c3; color: #854d0e;
+  border: 1px solid rgba(234,179,8,.25);
+}
+.status-badge.for_renewal {
+  background: #fff7ed; color: #c2410c;
+  border: 1px solid rgba(249,115,22,.2);
 }
 /* Dot prefix */
 .status-badge.paid::before,
@@ -558,7 +562,8 @@ table tbody tr:last-child td { border-bottom: none; }
 .status-badge.unread::before    { content: '●'; font-size: 8px; }
 .status-badge.overdue::before,
 .status-badge.expired::before,
-.status-badge.terminated::before { content: '●'; font-size: 8px; }
+.status-badge.terminated::before,
+.status-badge.for_renewal::before { content: '●'; font-size: 8px; }
 
 /* =============================================
    MODAL
@@ -677,7 +682,7 @@ table tbody tr:last-child td { border-bottom: none; }
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px; padding: 0 5px;
   border-radius: 20px;
-  background: var(--comp); color: var(--secondary);
+  background: #ff0000; color: #fff;
   font-size: 10px; font-weight: 800;
   margin-left: 6px; line-height: 1;
 }

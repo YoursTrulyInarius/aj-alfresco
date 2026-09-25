@@ -6,6 +6,15 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 
 ## Version History
 
+### 2026-09-25
+
+- Added contract status display for `ACTIVE`, `FOR RENEWAL`, `PENDING RENEWAL`, and `TERMINATED`.
+- Added admin contract editing for tenant, stall, dates, deposit, duration, terms, and status.
+- Kept contract monthly rent locked to the selected stall's stored rate during creation and editing.
+- Added safe contract termination recovery through the edit form, including stall availability checks.
+- Added an unread notifications filter and preserved the existing notification status colors.
+- Added a print-friendly overdue tenant list accessible from the Tenants page.
+
 ### 2026-08-28
 
 - Added automatic overdue-rent detection and email reminders for unpaid monthly rent.
@@ -28,11 +37,13 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 - Create and update stalls with a number, name, location, monthly rate, size, and status
 - Register tenants and manage their account status and business details
 - Create contracts that connect an active tenant to an available stall
+- Edit contract details and lifecycle status, including restoring an accidentally terminated contract
 - Track contract dates, rent, deposits, terms, duration, and lifecycle status
+- View and print the current overdue tenant list from the Tenants page
 - Record cash or manually verified payments
 - View payment history, search records, and print receipts
 - View payment reports
-- Filter and mark notifications as read
+- Filter notifications by type or unread status, and mark them as read
 - Review tenant termination requests and approve or reject them from the dashboard
 - Force-send rent-due, overdue-rent, and contract-expiry email reminders from `admin/test_reminders.php`
 
@@ -140,11 +151,11 @@ Use the username and password configured by your MySQL installation if they diff
 
 ### 5. Configure PayMongo
 
-Open `config/paymongo.php` and replace the placeholders:
+Set the PayMongo environment variables used by `config/paymongo.php`:
 
-```php
-define('PAYMONGO_SECRET_KEY', 'YOUR_PAYMONGO_SECRET_KEY');
-define('PAYMONGO_PUBLIC_KEY', 'YOUR_PAYMONGO_PUBLIC_KEY');
+```powershell
+$env:PAYMONGO_SECRET_KEY = 'YOUR_PAYMONGO_SECRET_KEY'
+$env:PAYMONGO_PUBLIC_KEY = 'YOUR_PAYMONGO_PUBLIC_KEY'
 ```
 
 Get these values from the PayMongo Dashboard under Developers or API keys. Use test keys during development. The application builds its success and cancel URLs from the current request host, so local testing uses the `localhost` address automatically.
@@ -153,15 +164,15 @@ Do not commit real PayMongo keys. Keep this file private or use a deployment-spe
 
 ### 6. Configure SMTP email
 
-Open `config/smtp.php` and replace the placeholders:
+Set the SMTP environment variables used by `config/smtp.php`:
 
-```php
-define('SMTP_HOST',     'smtp.gmail.com');
-define('SMTP_PORT',     587);
-define('SMTP_USERNAME', 'your_email@gmail.com');
-define('SMTP_PASSWORD', 'your_app_password_here');
-define('SMTP_FROM',     'your_email@gmail.com');
-define('SMTP_FROM_NAME','A&J Alfresco');
+```powershell
+$env:SMTP_HOST = 'smtp.gmail.com'
+$env:SMTP_PORT = '587'
+$env:SMTP_USERNAME = 'your_email@gmail.com'
+$env:SMTP_PASSWORD = 'your_app_password_here'
+$env:SMTP_FROM = 'your_email@gmail.com'
+$env:SMTP_FROM_NAME = 'A&J Alfresco'
 ```
 
 For Gmail, enable two-step verification and create an app password. Use the app password in `SMTP_PASSWORD`, not the normal Gmail password. Confirm that the sender address matches the configured SMTP account.

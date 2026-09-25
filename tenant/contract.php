@@ -162,7 +162,8 @@ if ($contract) {
           <?php else: ?>
             <div class="contract-details-grid">
               <div class="contract-detail"><span class="contract-detail-label">Stall</span><strong class="contract-detail-value"><?php echo htmlspecialchars($contract['stall_number']); ?></strong><div class="contract-detail-note"><?php echo htmlspecialchars($contract['location_description']); ?></div></div>
-              <div class="contract-detail"><span class="contract-detail-label">Contract status</span><span class="status-badge <?php echo htmlspecialchars($contract['status']); ?>"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $contract['status']))); ?></span></div>
+              <?php $displayStatus = contractDisplayStatus($contract['status'], $contract['end_date']); ?>
+              <div class="contract-detail"><span class="contract-detail-label">Contract status</span><span class="status-badge <?php echo htmlspecialchars($displayStatus); ?>"><?php echo htmlspecialchars(strtoupper(str_replace('_', ' ', $displayStatus))); ?></span></div>
               <div class="contract-detail"><span class="contract-detail-label">Rental period</span><strong class="contract-detail-value"><?php echo formatDate($contract['start_date']); ?></strong><div class="contract-detail-note">to <?php echo formatDate($contract['end_date']); ?></div></div>
               <div class="contract-detail"><span class="contract-detail-label">Monthly rent</span><strong class="contract-detail-value"><?php echo formatMoney($contract['monthly_rent']); ?></strong><div class="contract-detail-note">Due every <?php echo date('jS', strtotime($contract['start_date'])); ?></div></div>
               <div class="contract-detail"><span class="contract-detail-label">Security deposit</span><strong class="contract-detail-value"><?php echo formatMoney($contract['deposit_amount']); ?></strong></div>

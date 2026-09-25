@@ -16,6 +16,8 @@ if ($filterType === 'payment') {
     $query .= " AND n.type IN ('payment', 'due_date')";
 } elseif ($filterType === 'contract') {
     $query .= " AND n.type = 'contract_expiry'";
+} elseif ($filterType === 'unread') {
+  $query .= " AND n.is_read = 0";
 }
 $query .= " ORDER BY n.id DESC";
 
@@ -83,6 +85,7 @@ $notifs = $stmt->get_result();
               <label for="filter_type" style="font-size:13.5px; font-weight:600; color:#475569;">Filter:</label>
               <select name="filter_type" id="filter_type" onchange="this.form.submit()" style="padding:6px 12px; border:1px solid #ddd; border-radius:8px; font-size:13.5px;">
                 <option value="">All Notifications</option>
+                <option value="unread" <?php echo $filterType === 'unread' ? 'selected' : ''; ?>>Unread Notifications</option>
                 <option value="payment" <?php echo $filterType === 'payment' ? 'selected' : ''; ?>>Payment Alerts</option>
                 <option value="contract" <?php echo $filterType === 'contract' ? 'selected' : ''; ?>>Contract Alerts</option>
               </select>
@@ -122,13 +125,13 @@ $notifs = $stmt->get_result();
                     
                     if ($type === 'contract_expiry') {
                         $badgeClass = 'overdue';
-                        $labelText = $isRead ? 'read' : 'unread';
+                      $labelText = $isRead ? 'read' : 'unread';
                     } elseif ($type === 'payment' || $type === 'due_date') {
-                        $badgeClass = $isRead ? 'paid' : 'pending';
-                        $labelText = $isRead ? 'read' : 'unread';
+                      $badgeClass = $isRead ? 'paid' : 'pending';
+                      $labelText = $isRead ? 'read' : 'unread';
                     } else {
-                        $badgeClass = $isRead ? 'active' : 'pending';
-                        $labelText = $isRead ? 'read' : 'unread';
+                      $badgeClass = $isRead ? 'active' : 'pending';
+                      $labelText = $isRead ? 'read' : 'unread';
                     }
                     ?>
                     <span class="status-badge <?php echo $badgeClass; ?>">

@@ -3,8 +3,8 @@
 // Replace these with your actual PayMongo keys
 // Secret Key (sk_test_...) and Public Key (pk_test_...)
 
-define('PAYMONGO_SECRET_KEY', 'YOUR SECRET_KEY_HERE');
-define('PAYMONGO_PUBLIC_KEY', 'YOUR PUBLIC_KEY_HERE');
+define('PAYMONGO_SECRET_KEY', getenv('PAYMONGO_SECRET_KEY') ?: 'YOUR_PAYMONGO_SECRET_KEY');
+define('PAYMONGO_PUBLIC_KEY', getenv('PAYMONGO_PUBLIC_KEY') ?: 'YOUR_PAYMONGO_PUBLIC_KEY');
 
 // Success and Cancel URLs
 $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";

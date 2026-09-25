@@ -170,10 +170,13 @@ $unread = notifUnreadCount($adminId);
       <div class="card" style="margin-bottom: 25px;">
         <div class="card-header">
           <h2>Registered Tenants</h2>
-          <form method="GET" style="display:flex; gap:10px;">
-            <input type="text" name="search" placeholder="Search name or business..." value="<?php echo htmlspecialchars($search); ?>" style="padding: 8px 15px; border:1px solid #eee; border-radius:10px; width:250px;">
-            <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
-          </form>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <a class="btn btn-primary btn-sm" href="print_overdues.php" target="_blank" rel="noopener" style="width:auto;">Print Overdue List</a>
+            <form method="GET" style="display:flex; gap:10px;">
+              <input type="text" name="search" placeholder="Search name or business..." value="<?php echo htmlspecialchars($search); ?>" style="padding: 8px 15px; border:1px solid #eee; border-radius:10px; width:250px;">
+              <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
+            </form>
+          </div>
         </div>
         <div class="card-body table-responsive">
           <table>
