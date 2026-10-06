@@ -60,17 +60,21 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 
 ### Notifications and reminders
 
-Loading `tenant/dashboard.php` runs the automatic reminder check for the signed-in tenant. It creates an in-app notification and sends an email when a matching reminder applies. The current active contract is used to calculate the monthly due date from its `start_date`.
+Loading `tenant/dashboard.php` runs the automatic reminder check for the signed-in tenant. Loading `admin/dashboard.php` checks all active tenants as well, and saving an active contract edit rechecks that tenant immediately. For reminders to run without a dashboard visit, schedule `run_reminders.php` daily with Windows Task Scheduler. A matching reminder creates an in-app notification and sends an email. The current active contract's `start_date` determines the monthly rent due day, and its `end_date` determines contract expiry reminders.
 
 #### When emails are sent
 
-- **Rent due:** exactly 7, 3, and 1 day before the next monthly due date.
-- **Overdue rent:** after the current month's due date has passed, when no `paid` payment exists for that contract and `payment_for_month`. The overdue reminder is sent once per unpaid month.
+- **Rent due:** 7, 3, and 1 day before the next monthly due date. If a dashboard check misses an earlier stage, it sends the closest applicable stage.
+- **Overdue rent:** 1, 3, and 7 days after the current month's due date, when no `paid` payment exists for that contract and `payment_for_month`. Missing overdue stages are sent the next time reminders are checked.
 - **Contract expiry:** exactly 90, 60, and 30 days before the active contract's `end_date`.
+
+#### Schedule automatic checks on Windows
+
+Run `install_reminder_task.ps1` in PowerShell from the project directory. It registers a current-user task that runs the CLI reminder runner when Windows records a system time change and daily at 8:00 AM. The current user must be logged in, XAMPP MySQL must be running, and SMTP must be configured. The task is safe to run more than once because date-specific milestones are deduplicated. After changing the PC clock, Windows triggers a new reminder check; only reminders whose date windows match the new system date will send.
 
 Tenant renewal requests are available only during the final 30 days of an active contract. The contract page displays a SweetAlert when a tenant tries to request renewal too early, and the processing endpoint enforces the same rule server-side.
 
-Reminder notifications include a milestone key in their message. That key prevents the same tenant and contract milestone from creating another notification or sending another automatic email when the dashboard is loaded again. Payments marked `paid` prevent the overdue email for that month.
+Reminder notification keys include the contract and applicable due date, so manually changing an active contract's start or end date creates a new reminder schedule without old notifications suppressing it. Each rent-due, overdue, and contract-expiry stage is sent at most once for that date. Payments marked `paid` prevent overdue emails for that month.
 
 #### Where emails are sent
 
@@ -104,16 +108,21 @@ Termination requests require administrator approval. A tenant submits a request 
 
 ## Requirements
 
-- Windows with XAMPP, or an equivalent Apache/PHP/MySQL environment
-- PHP extensions used by the application, including `mysqli` and `curl`
+- A local Apache/PHP/MySQL stack on Windows, Linux, or macOS
+- PHP 8.x with the `mysqli` and `curl` extensions enabled
+- A MySQL or MariaDB database server
 - A PayMongo account and API keys for online payments
 - A Gmail account with an app password, or another SMTP-compatible mail account
 
 ## Step-by-step setup
 
+These steps are for a local PHP + MySQL environment on Windows, Linux, or macOS. Replace the project path with the web root used by your local server.
+
 ### 1. Clone the repository
 
-Open PowerShell or Git Bash and clone the project into the XAMPP web root:
+Use the clone command that matches your operating system.
+
+#### Windows (XAMPP / Apache + MySQL)
 
 ```powershell
 cd C:\xampp\htdocs
@@ -121,11 +130,32 @@ git clone https://github.com/YoursTrulyInarius/aj-alfresco.git
 cd aj-alfresco
 ```
 
+#### Linux (Apache + MySQL / MariaDB)
+
+```bash
+cd /var/www/html
+sudo git clone https://github.com/YoursTrulyInarius/aj-alfresco.git
+cd aj-alfresco
+sudo chown -R $USER:$USER /var/www/html/aj-alfresco
+```
+
+#### macOS (MAMP / native Apache)
+
+```bash
+cd /Applications/MAMP/htdocs
+git clone https://github.com/YoursTrulyInarius/aj-alfresco.git
+cd aj-alfresco
+```
+
 If the project is already downloaded, open its existing directory instead of cloning it again.
 
-### 2. Start XAMPP
+### 2. Start your local web server and database
 
-Open the XAMPP Control Panel and start Apache and MySQL. The application expects both services to be running.
+- Windows: open the XAMPP Control Panel and start Apache and MySQL.
+- Linux: start Apache and MySQL/MariaDB (`sudo systemctl start apache2` and `sudo systemctl start mysql` or `mariadb`).
+- macOS: start MAMP, or start the built-in Apache service if you are using a native setup.
+
+The application expects both the web server and the database service to be running.
 
 ### 3. Create the database
 
