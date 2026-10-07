@@ -1,5 +1,5 @@
 # A&J Alfresco Rental Management System
-ADA
+AD
 ## Short description
 
 A&J Alfresco is a web-based rental management system for food-park operations. It helps administrators manage stalls, tenants, contracts, payments, receipts, reports, and notifications, while tenants can view their rental information and pay online.
