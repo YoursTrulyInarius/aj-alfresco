@@ -67,7 +67,7 @@ A&J Alfresco is a web-based rental management system for food-park operations. I
 - View payment history and print individual receipts
 - Filter notifications by payment or contract expiry and mark them as read
 - Change the account password
-- Request a six-digit password verification code by email and reset the password after verifying it; codes expire after 10 minutes, can be used once, and are rate-limited
+- Request a six-digit password verification code by email and reset the password after verifying it; each code expires after 10 minutes and can be used once, up to three codes can be requested per 15 minutes, and verification locks after five incorrect attempts
 - Enter the emailed code in six separate boxes; pasting a complete code fills all six boxes
 - See a short password hint only when a password requirement is missing, and toggle password visibility while typing
 
