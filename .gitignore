@@ -2,6 +2,9 @@
 php_errors.log
 composer.lock
 .htaccess
+config/paymongo.local.php
+config/smtp.local.php
+config/database.local.php
 
 # Virtual Environment
 .venv/

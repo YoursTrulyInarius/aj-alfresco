@@ -90,8 +90,9 @@ $notifs = $stmt->get_result();
                 <option value="contract" <?php echo $filterType === 'contract' ? 'selected' : ''; ?>>Contract Alerts</option>
               </select>
             </form>
-            <form method="POST" action="process_notifications.php" style="margin:0">
+            <form method="POST" action="process_notifications.php" style="margin:0" onsubmit="this.querySelector('input[name=\'scroll_y\']').value = window.scrollY;">
               <input type="hidden" name="action" value="mark_all_read">
+              <input type="hidden" name="scroll_y" value="0">
               <button class="btn btn-warning btn-sm" type="submit">Mark All Read</button>
             </form>
           </div>
@@ -141,8 +142,9 @@ $notifs = $stmt->get_result();
                   <td><?php echo formatDate($n['created_at']); ?></td>
                   <td>
                     <?php if ((int)$n['is_read'] === 0): ?>
-                      <form method="POST" action="process_notifications.php" style="display:inline-block;margin:0">
+                      <form method="POST" action="process_notifications.php" style="display:inline-block;margin:0" onsubmit="this.querySelector('input[name=\'scroll_y\']').value = window.scrollY;">
                         <input type="hidden" name="action" value="mark_one_read">
+                        <input type="hidden" name="scroll_y" value="0">
                         <input type="hidden" name="id" value="<?php echo (int)$n['id']; ?>">
                         <button class="btn btn-success btn-sm" type="submit" style="width:auto; padding: 4px 8px;">Mark Read</button>
                       </form>
@@ -194,6 +196,13 @@ function showNotif(title, msg) {
     }
   });
 }
+  window.addEventListener('load', function() {
+    const savedScroll = <?php echo isset($_SESSION['scroll_y']) ? (int)$_SESSION['scroll_y'] : 0; ?>;
+    if (savedScroll > 0) {
+      window.scrollTo({ top: savedScroll, left: 0, behavior: 'auto' });
+    }
+    <?php unset($_SESSION['scroll_y']); ?>
+  });
 </script>
 </body>
 </html>

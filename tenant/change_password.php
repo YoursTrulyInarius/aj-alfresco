@@ -32,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $up->bind_param("si", $hash, $tenantId);
             $up->execute();
 
+            if ($up->affected_rows > 0) {
+                auditLog('password_changed', 'tenant', $tenantId);
+            }
             $success = "Password updated successfully!";
         }
     }

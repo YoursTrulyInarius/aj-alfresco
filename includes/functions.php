@@ -33,6 +33,35 @@ function requireTenant() {
     }
 }
 
+function auditLog($action, $entityType, $entityId = null, array $details = []) {
+    global $conn;
+
+    $actorId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    $actorName = $_SESSION['full_name'] ?? 'System';
+    $actorRole = $_SESSION['role'] ?? 'system';
+    $detailsJson = json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+    $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+
+    $stmt = $conn->prepare("
+        INSERT INTO audit_logs(actor_user_id, actor_name, actor_role, action, entity_type, entity_id, details, ip_address, user_agent)
+        VALUES(?,?,?,?,?,?,?,?,?)
+    ");
+    $stmt->bind_param(
+        "issssisss",
+        $actorId,
+        $actorName,
+        $actorRole,
+        $action,
+        $entityType,
+        $entityId,
+        $detailsJson,
+        $ipAddress,
+        $userAgent
+    );
+    $stmt->execute();
+}
+
 function sanitize($value) {
     global $conn;
     return htmlspecialchars(trim($conn->real_escape_string($value)));
@@ -49,6 +78,7 @@ function formatDate($date) {
 
 function contractDisplayStatus($status, $endDate) {
     if ($status === 'pending_renewal') return 'pending_renewal';
+    if ($status === 'for_renewal') return 'for_renewal';
     if ($status === 'terminated') return 'terminated';
 
     if ($status === 'active' && $endDate) {
@@ -78,6 +108,7 @@ function createNotification($userId, $title, $message, $type='general') {
     $stmt = $conn->prepare("INSERT INTO notifications(user_id,title,message,type) VALUES(?,?,?,?)");
     $stmt->bind_param("isss", $userId, $title, $message, $type);
     $stmt->execute();
+    return $conn->insert_id;
 }
 
 function sendMail($toEmail, $toName, $subject, $htmlBody) {
@@ -94,6 +125,7 @@ function sendMail($toEmail, $toName, $subject, $htmlBody) {
         $mail->Password   = SMTP_PASSWORD;
         $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = SMTP_PORT;
+        $mail->CharSet    = PHPMailer\PHPMailer\PHPMailer::CHARSET_UTF8;
 
         $mail->setFrom(SMTP_FROM, SMTP_FROM_NAME);
         $mail->addAddress($toEmail, $toName);
@@ -110,7 +142,7 @@ function sendMail($toEmail, $toName, $subject, $htmlBody) {
     }
 }
 
-function tenantAutoReminders($tenantId) {
+function tenantAutoReminders($tenantId, ?DateTime $reminderDate = null) {
     global $conn;
 
     // Get active contract
@@ -120,10 +152,12 @@ function tenantAutoReminders($tenantId) {
     $contract = $stmt->get_result()->fetch_assoc();
     if (!$contract) return;
 
-    $today = new DateTime('today');
+    $today = $reminderDate ? clone $reminderDate : new DateTime('today');
+    $today->setTime(0, 0, 0);
     $currentMonth = $today->format('Y-m');
     $startDate = new DateTime($contract['start_date']);
-    $dueDay = min((int)(new DateTime($contract['start_date']))->format('d'), (int)$today->format('t'));
+    $rentDueDay = (int)$startDate->format('j');
+    $dueDay = min($rentDueDay, (int)$today->format('t'));
     $currentDue = new DateTime($currentMonth . '-01');
     $currentDue->modify('+' . ($dueDay - 1) . ' days');
 
@@ -135,17 +169,21 @@ function tenantAutoReminders($tenantId) {
         if ($paidStmt->get_result()->num_rows === 0) {
             $monthStr = $currentDue->format('F Y');
             $daysOverdue = (int)$currentDue->diff($today)->days;
-            $milestoneKey = "overdue|$currentMonth";
-            $chkOverdue = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
-            $likeOverdue = "%$milestoneKey%";
-            $chkOverdue->bind_param("is", $tenantId, $likeOverdue);
-            $chkOverdue->execute();
+            foreach ([1, 3, 7] as $overdueMilestone) {
+                if ($daysOverdue < $overdueMilestone) continue;
 
-            if ($chkOverdue->get_result()->num_rows === 0) {
-                createNotification(
+                $milestoneKey = "overdue|contract#{$contract['id']}|$currentMonth|{$currentDue->format('Y-m-d')}|{$overdueMilestone}d";
+                $chkOverdue = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
+                $likeOverdue = "%$milestoneKey%";
+                $chkOverdue->bind_param("is", $tenantId, $likeOverdue);
+                $chkOverdue->execute();
+
+                if ($chkOverdue->get_result()->num_rows > 0) continue;
+
+                $notificationId = createNotification(
                     $tenantId,
                     "Rent Overdue — $monthStr",
-                    "[$milestoneKey] Your rent for $monthStr is overdue by $daysOverdue day(s). Please make your payment as soon as possible.",
+                    "[$milestoneKey] Your rent for $monthStr is at least $overdueMilestone day(s) overdue. Please make your payment as soon as possible.",
                     "due_date"
                 );
 
@@ -155,7 +193,7 @@ function tenantAutoReminders($tenantId) {
                 $userOverdue = $uStmtOverdue->get_result()->fetch_assoc();
 
                 if ($userOverdue && !empty($userOverdue['email'])) {
-                    $subjectOverdue = "Rent Overdue — $monthStr — A&J Alfresco";
+                    $subjectOverdue = "Rent Overdue — $overdueMilestone-Day Reminder — $monthStr — A&J Alfresco";
                     $dueLabel = $currentDue->format('M d, Y');
                     $htmlOverdue = "
                     <div style='font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:10px;overflow:hidden;'>
@@ -163,37 +201,48 @@ function tenantAutoReminders($tenantId) {
                       <div style='padding:28px 32px;background:#fff;'>
                         <p style='font-size:15px;color:#1e293b;'>Hi <strong>{$userOverdue['full_name']}</strong>,</p>
                         <p style='color:#475569;line-height:1.7;'>Your <strong>monthly rent</strong> for <strong>$monthStr</strong> is overdue.</p>
-                        <div style='background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;padding:14px 18px;margin:20px 0;'><p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Due Date:</strong> $dueLabel</p><p style='margin:0;font-size:13px;color:#dc2626;font-weight:700;'>🔴 Days Overdue: $daysOverdue</p></div>
+                        <div style='background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;padding:14px 18px;margin:20px 0;'><p style='margin:0 0 6px;font-size:14px;color:#1e293b;'><strong>Due Date:</strong> $dueLabel</p><p style='margin:0 0 6px;font-size:13px;color:#dc2626;font-weight:700;'>🔴 Reminder: $overdueMilestone day(s) overdue</p><p style='margin:0;font-size:12px;color:#64748b;'>Currently overdue by $daysOverdue day(s)</p></div>
                         <p style='color:#475569;line-height:1.7;'>Please make your payment as soon as possible to keep your account up to date. If you have already paid, please disregard this message.</p>
                       </div>
                       <div style='background:#f8fafc;padding:14px 32px;text-align:center;border-top:1px solid #eee;'><p style='color:#94a3b8;font-size:11px;margin:0;'>&copy; " . date('Y') . " A&amp;J Alfresco. All rights reserved.</p></div>
                     </div>";
 
-                    sendMail($userOverdue['email'], $userOverdue['full_name'], $subjectOverdue, $htmlOverdue);
+                    if (!sendMail($userOverdue['email'], $userOverdue['full_name'], $subjectOverdue, $htmlOverdue)) {
+                        $deleteNotification = $conn->prepare("DELETE FROM notifications WHERE id=?");
+                        $deleteNotification->bind_param("i", $notificationId);
+                        $deleteNotification->execute();
+                    }
                 }
             }
         }
     }
 
     // (A) Rent due reminder: based on the start date, find the NEXT due date
-    $nextDue = new DateTime($contract['start_date']);
-    
-    // Increment by 1 month until we hit the first future due date
-    while ($nextDue <= $today) {
-        $nextDue->modify('+1 month');
+    if ($startDate > $today) {
+        $nextDue = clone $startDate;
+    } else {
+        $nextDue = new DateTime($today->format('Y-m-01'));
+        $nextDueDay = min($rentDueDay, (int)$nextDue->format('t'));
+        $nextDue->setDate((int)$nextDue->format('Y'), (int)$nextDue->format('n'), $nextDueDay);
+
+        if ($nextDue <= $today) {
+            $nextDue->modify('first day of next month');
+            $nextDueDay = min($rentDueDay, (int)$nextDue->format('t'));
+            $nextDue->setDate((int)$nextDue->format('Y'), (int)$nextDue->format('n'), $nextDueDay);
+        }
     }
     
     $daysToDue = (int)$today->diff($nextDue)->days;
 
-    // (A) Rent due reminder — fire at exactly 7, 3, and 1 days before
-    $reminderMilestones = [7, 3, 1];
+    // Send the first missed milestone when the tenant opens the dashboard.
+    $rentMilestone = $daysToDue <= 1 ? 1 : ($daysToDue <= 3 ? 3 : ($daysToDue <= 7 ? 7 : 0));
 
-    if (in_array($daysToDue, $reminderMilestones)) {
+    if ($rentMilestone > 0) {
         $monthStr  = $nextDue->format('F Y');
         $dueLabel  = date('M d, Y', strtotime($nextDue->format('Y-m-d')));
 
         // Deduplication: one notification per milestone per month
-        $milestoneKey = "$monthStr|{$daysToDue}d";
+        $milestoneKey = "rent|contract#{$contract['id']}|{$nextDue->format('Y-m-d')}|{$rentMilestone}d";
         $chk = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='due_date' AND message LIKE ? LIMIT 1");
         $likeMsg = "%$milestoneKey%";
         $chk->bind_param("is", $tenantId, $likeMsg);
@@ -201,22 +250,22 @@ function tenantAutoReminders($tenantId) {
 
         if ($chk->get_result()->num_rows === 0) {
             // Urgency label
-            if ($daysToDue === 1) {
+            if ($rentMilestone === 1) {
                 $urgency = "TOMORROW";
                 $badge   = "🔴";
                 $color   = "#dc2626";
-            } elseif ($daysToDue === 3) {
-                $urgency = "in 3 DAYS";
+            } elseif ($rentMilestone === 3) {
+                $urgency = "in $daysToDue DAYS";
                 $badge   = "🟠";
                 $color   = "#ea580c";
             } else {
-                $urgency = "in 1 WEEK";
+                $urgency = "in $daysToDue DAYS";
                 $badge   = "🟡";
                 $color   = "#d97706";
             }
 
             // In-app notification (includes milestone key for dedup)
-            createNotification(
+            $notificationId = createNotification(
                 $tenantId,
                 "Rent Due $urgency",
                 "[$milestoneKey] Your rent for $monthStr is due $urgency. (Due on $dueLabel)",
@@ -252,33 +301,37 @@ function tenantAutoReminders($tenantId) {
                   </div>
                 </div>";
 
-                sendMail($user['email'], $user['full_name'], $subject, $html);
+                if (!sendMail($user['email'], $user['full_name'], $subject, $html)) {
+                    $deleteNotification = $conn->prepare("DELETE FROM notifications WHERE id=?");
+                    $deleteNotification->bind_param("i", $notificationId);
+                    $deleteNotification->execute();
+                }
             }
         }
     }
 
-    // (B) Contract expiry reminder — fire at exactly 90, 60, and 30 days before end date
+    // (B) Contract expiry reminder — send the first missed 90, 60, or 30-day milestone
     $expiryMilestones = [90, 60, 30]; // 3 months, 2 months, 1 month
 
-    $stmt2 = $conn->prepare("SELECT DATEDIFF(end_date, CURDATE()) AS days_left FROM contracts WHERE id=? LIMIT 1");
-    $stmt2->bind_param("i", $contract['id']);
-    $stmt2->execute();
-    $daysLeft = (int)($stmt2->get_result()->fetch_assoc()['days_left'] ?? 9999);
+    $endDate = new DateTime($contract['end_date']);
+    $daysLeft = $today <= $endDate ? (int)$today->diff($endDate)->days : -1;
 
-    if (in_array($daysLeft, $expiryMilestones)) {
+    $expiryMilestone = $daysLeft > 0 ? ($daysLeft <= 30 ? 30 : ($daysLeft <= 60 ? 60 : ($daysLeft <= 90 ? 90 : 0))) : 0;
+
+    if ($expiryMilestone > 0) {
         $endLabel = date('M d, Y', strtotime($contract['end_date']));
 
         // Urgency label per milestone
-        if ($daysLeft === 30) {
+        if ($expiryMilestone === 30) {
             $urgency  = "1 MONTH";   $badge = "🔴"; $color = "#dc2626";
-        } elseif ($daysLeft === 60) {
+        } elseif ($expiryMilestone === 60) {
             $urgency  = "2 MONTHS";  $badge = "🟠"; $color = "#ea580c";
         } else {
             $urgency  = "3 MONTHS";  $badge = "🟡"; $color = "#d97706";
         }
 
         // Deduplication key: one notification per milestone per contract
-        $milestoneKey = "contract#{$contract['id']}|{$daysLeft}d";
+        $milestoneKey = "contract#{$contract['id']}|{$endDate->format('Y-m-d')}|{$expiryMilestone}d";
         $chk2 = $conn->prepare("SELECT id FROM notifications WHERE user_id=? AND type='contract_expiry' AND message LIKE ? LIMIT 1");
         $likeMsg2 = "%$milestoneKey%";
         $chk2->bind_param("is", $tenantId, $likeMsg2);
@@ -286,7 +339,7 @@ function tenantAutoReminders($tenantId) {
 
         if ($chk2->get_result()->num_rows === 0) {
             // In-app notification
-            createNotification(
+            $notificationId = createNotification(
                 $tenantId,
                 "Contract Expiring in $urgency",
                 "[$milestoneKey] Your contract ends on $endLabel — that's $daysLeft day(s) away. Please request renewal if needed.",
@@ -322,11 +375,26 @@ function tenantAutoReminders($tenantId) {
                   </div>
                 </div>";
 
-                sendMail($user3['email'], $user3['full_name'], $subject3, $html3);
+                if (!sendMail($user3['email'], $user3['full_name'], $subject3, $html3)) {
+                    $deleteNotification = $conn->prepare("DELETE FROM notifications WHERE id=?");
+                    $deleteNotification->bind_param("i", $notificationId);
+                    $deleteNotification->execute();
+                }
             }
         }
     }
 
+}
+
+function runAutomaticReminders(?DateTime $reminderDate = null) {
+    global $conn;
+
+    $result = $conn->query("SELECT DISTINCT tenant_id FROM contracts WHERE status='active'");
+    if (!$result) return;
+
+    while ($row = $result->fetch_assoc()) {
+        tenantAutoReminders((int)$row['tenant_id'], $reminderDate);
+    }
 }
 
 // Get unread notifications (for toast popups)

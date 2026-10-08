@@ -32,10 +32,177 @@ $notifs = $stmt->get_result();
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="../assets/css/style.css?v=8"/>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    .notif-msg { cursor: pointer; transition: 0.2s; position: relative; }
-    .notif-msg:hover { color: var(--accent); }
+    .notif-msg { position: relative; }
+
+    .notif-details-trigger {
+      display: block;
+      margin-top: 6px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: #64748b;
+      font: inherit;
+      font-size: 11px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .notif-details-trigger:hover,
+    .notif-details-trigger:focus-visible { color: #d63384; color: var(--accent, #d63384); text-decoration: underline; }
+
+    .tenant-notif-backdrop {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.58);
+    }
+
+    .tenant-notif-backdrop[hidden] { display: none; }
+
+    .tenant-notif-dialog {
+      position: relative;
+      width: 100%;
+      max-width: 620px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 32px 36px 30px;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+      text-align: center;
+      color: #2d3748;
+    }
+
+    .tenant-notif-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 50%;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .tenant-notif-close:hover { background: #e2e8f0; }
+
+    .tenant-notif-icon {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: 4px solid #29b7d9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+      background: #f0fbfd;
+      color: #29b7d9;
+      font-size: 62px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .tenant-notif-title {
+      font-size: 2.1rem;
+      font-size: clamp(1.65rem, 5vw, 2.35rem);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+      color: #2c2f36;
+      font-weight: 700;
+      margin: 0 0 18px;
+      text-align: center;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .tenant-notif-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0 0 20px;
+      text-align: left;
+    }
+
+    .tenant-notif-detail {
+      flex: 1 1 calc(50% - 10px);
+      min-width: 140px;
+      padding: 12px 14px;
+      border: 1px solid #e8edf2;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+
+    .tenant-notif-label {
+      display: block;
+      margin-bottom: 4px;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tenant-notif-value {
+      display: block;
+      color: #1e293b;
+      font-size: 14px;
+      font-weight: 700;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .tenant-notif-value.is-alert {
+      color: #b42318;
+    }
+
+    .tenant-notif-copy {
+      font-size: 16px;
+      line-height: 1.5;
+      color: #475569;
+      margin: 0 0 20px;
+      text-align: left;
+    }
+
+    .tenant-notif-action {
+      width: 100%;
+      max-width: 220px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #ff5a7c 0%, #f84d76 100%);
+      color: #fff;
+      padding: 13px 20px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(248, 77, 118, 0.28);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .tenant-notif-action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(248, 77, 118, 0.32);
+    }
+
+    @media (max-width: 480px) {
+      .tenant-notif-backdrop { padding: 12px; }
+      .tenant-notif-dialog { padding: 28px 20px 22px; border-radius: 16px; }
+      .tenant-notif-icon { width: 76px; height: 76px; font-size: 48px; }
+      .tenant-notif-copy { font-size: 15px; }
+      .tenant-notif-detail { flex-basis: 100%; }
+    }
   </style>
 </head>
 <body>
@@ -114,9 +281,15 @@ $notifs = $stmt->get_result();
               <?php while($n = $notifs->fetch_assoc()): ?>
                 <tr>
                   <td><?php echo htmlspecialchars($n['title']); ?></td>
-                  <td class="notif-msg" onclick="showNotif('<?php echo addslashes($n['title']); ?>', '<?php echo addslashes($n['message']); ?>')">
+                  <td class="notif-msg">
                     <?php echo htmlspecialchars($n['message']); ?>
-                    <div style="font-size: 10px; color: #999; margin-top: 4px;">📂 Click to view full details</div>
+                    <button
+                      type="button"
+                      class="notif-details-trigger"
+                      data-title="<?php echo htmlspecialchars($n['title'], ENT_QUOTES, 'UTF-8'); ?>"
+                      data-message="<?php echo htmlspecialchars($n['message'], ENT_QUOTES, 'UTF-8'); ?>"
+                      data-type="<?php echo htmlspecialchars($n['type'], ENT_QUOTES, 'UTF-8'); ?>"
+                    >Click to view full details</button>
                   </td>
                   <td><?php echo htmlspecialchars($n['type']); ?></td>
                   <td>
@@ -165,24 +338,167 @@ $notifs = $stmt->get_result();
     </div>
   </main>
 </div>
+<div class="tenant-notif-backdrop" id="tenantNotifBackdrop" hidden>
+  <section
+    class="tenant-notif-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="tenantNotifTitle"
+    aria-describedby="tenantNotifCopy"
+  >
+    <button type="button" class="tenant-notif-close" aria-label="Close notification details">&times;</button>
+    <div class="tenant-notif-icon" aria-hidden="true">i</div>
+    <h2 class="tenant-notif-title" id="tenantNotifTitle"></h2>
+    <div class="tenant-notif-meta" id="tenantNotifMeta"></div>
+    <p class="tenant-notif-copy" id="tenantNotifCopy"></p>
+    <button type="button" class="tenant-notif-action">Okay</button>
+  </section>
+</div>
 <script>
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('show');
   document.getElementById('sidebarOverlay').classList.toggle('show');
 }
 
-function showNotif(title, msg) {
-  Swal.fire({
-    title: title,
-    text: msg,
-    icon: 'info',
-    confirmButtonText: 'Okay',
-    confirmButtonColor: '#ff2d55',
-    customClass: {
-      popup: 'modal-pop-design'
-    }
-  });
+var notifBackdrop = document.getElementById('tenantNotifBackdrop');
+var notifDialog = notifBackdrop.querySelector('.tenant-notif-dialog');
+var notifTitle = document.getElementById('tenantNotifTitle');
+var notifMeta = document.getElementById('tenantNotifMeta');
+var notifCopy = document.getElementById('tenantNotifCopy');
+var previousNotifTrigger = null;
+
+function closeNotif() {
+  notifBackdrop.hidden = true;
+  document.body.style.overflow = '';
+  if (previousNotifTrigger && document.documentElement.contains(previousNotifTrigger)) {
+    previousNotifTrigger.focus();
+  }
 }
+
+var notifTriggers = document.querySelectorAll('.notif-details-trigger');
+for (var triggerIndex = 0; triggerIndex < notifTriggers.length; triggerIndex++) {
+  (function (trigger) {
+    trigger.addEventListener('click', function () {
+      var title = trigger.getAttribute('data-title') || '';
+      var message = trigger.getAttribute('data-message') || '';
+      var notificationType = trigger.getAttribute('data-type') || '';
+      var metaMatch = message.match(/^\[([^\]]+)\]/);
+      var metaItems = metaMatch ? metaMatch[1].split('|') : [];
+      var detailText = message.replace(/^\[[^\]]+\]\s*/, '').trim();
+      var monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+
+      notifTitle.textContent = title;
+      notifCopy.textContent = detailText;
+      while (notifMeta.firstChild) {
+        notifMeta.removeChild(notifMeta.firstChild);
+      }
+      for (var metaIndex = 0; metaIndex < metaItems.length; metaIndex++) {
+        var item = metaItems[metaIndex];
+        var label = 'Details';
+        var value = item;
+        var isAlert = false;
+
+        if (!item) continue;
+
+        if (item === 'overdue') {
+          label = 'Payment status';
+          value = 'Overdue';
+          isAlert = true;
+        } else if (item === 'rent') {
+          label = 'Payment status';
+          value = 'Upcoming';
+        } else if (/^contract#\d+$/i.test(item)) {
+          label = 'Contract';
+          value = '#' + item.split('#')[1];
+        } else if (/^\d{4}-\d{2}$/.test(item)) {
+          var monthPeriodParts = item.split('-');
+          var periodYear = parseInt(monthPeriodParts[0], 10);
+          var periodMonth = parseInt(monthPeriodParts[1], 10);
+          if (periodMonth >= 1 && periodMonth <= 12) {
+            label = 'Rent period';
+            value = monthNames[periodMonth - 1] + ' ' + periodYear;
+          }
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(item)) {
+          var dateParts = item.split('-');
+          var dateYear = parseInt(dateParts[0], 10);
+          var dateMonth = parseInt(dateParts[1], 10);
+          var dateDay = parseInt(dateParts[2], 10);
+          var parsedDate = new Date(dateYear, dateMonth - 1, dateDay);
+          var dateIsValid = dateMonth >= 1 && dateMonth <= 12 &&
+            parsedDate.getFullYear() === dateYear &&
+            parsedDate.getMonth() === dateMonth - 1 &&
+            parsedDate.getDate() === dateDay;
+          if (dateIsValid) {
+            label = notificationType === 'contract_expiry' ? 'Contract end date' : 'Due date';
+            value = monthNames[dateMonth - 1] + ' ' + dateDay + ', ' + dateYear;
+          }
+        } else if (/^\d+d$/i.test(item)) {
+          var days = parseInt(item.slice(0, -1), 10);
+          var isOverdue = metaItems.indexOf('overdue') !== -1;
+          label = isOverdue ? 'Overdue by' : 'Time remaining';
+          value = days + (days === 1 ? ' day ' : ' days ') + (isOverdue ? 'overdue' : 'remaining');
+          isAlert = isOverdue;
+        } else if (metaIndex === 0) {
+          label = 'Status';
+        }
+
+        var detail = document.createElement('div');
+        detail.className = 'tenant-notif-detail';
+        var detailLabel = document.createElement('span');
+        detailLabel.className = 'tenant-notif-label';
+        detailLabel.textContent = label;
+        var detailValue = document.createElement('span');
+        detailValue.className = 'tenant-notif-value' + (isAlert ? ' is-alert' : '');
+        detailValue.textContent = value;
+        detail.appendChild(detailLabel);
+        detail.appendChild(detailValue);
+        notifMeta.appendChild(detail);
+      }
+
+      previousNotifTrigger = trigger;
+      notifBackdrop.hidden = false;
+      document.body.style.overflow = 'hidden';
+      notifDialog.querySelector('.tenant-notif-close').focus();
+    });
+  })(notifTriggers[triggerIndex]);
+}
+
+var notifCloseButtons = notifBackdrop.querySelectorAll('.tenant-notif-close, .tenant-notif-action');
+for (var closeButtonIndex = 0; closeButtonIndex < notifCloseButtons.length; closeButtonIndex++) {
+  notifCloseButtons[closeButtonIndex].addEventListener('click', closeNotif);
+}
+
+notifBackdrop.addEventListener('click', function (event) {
+  if (event.target === notifBackdrop) closeNotif();
+});
+
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape' && !notifBackdrop.hidden) closeNotif();
+});
+
+notifDialog.addEventListener('keydown', function (event) {
+  if (event.key !== 'Tab') return;
+
+  var focusable = notifDialog.querySelectorAll('button:not([disabled])');
+  var first = focusable[0];
+  var last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+window.addEventListener('pageshow', function () {
+  notifBackdrop.hidden = true;
+  document.body.style.overflow = '';
+});
 </script>
 </body>
 </html>

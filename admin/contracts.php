@@ -265,6 +265,7 @@ $unread = notifUnreadCount($adminId);
                 <select name="status" id="editStatusSelect" required>
                   <option value="active">Active</option>
                   <option value="pending_renewal">Pending Renewal</option>
+                  <option value="for_renewal">For Renewal</option>
                   <option value="terminated">Terminated</option>
                   <option value="expired">Expired</option>
                 </select>

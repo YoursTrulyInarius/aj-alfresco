@@ -62,6 +62,15 @@ if ($action === 'create') {
     );
     $ins->execute();
 
+    auditLog('created', 'payment', $ins->insert_id, [
+        'contract_id' => $contract_id,
+        'tenant_id' => $tenant_id,
+        'amount' => $amount,
+        'payment_for_month' => $payment_for_month,
+        'payment_method' => $payment_method,
+        'receipt_number' => $receipt
+    ]);
+
     // Notify tenant
     createNotification($tenant_id, "Payment Recorded", "Your payment was recorded. Receipt: $receipt", "payment");
 
@@ -72,11 +81,21 @@ if ($action === 'create') {
 
 if ($action === 'delete') {
     $id = (int)($_POST['id'] ?? 0);
+    $paymentStmt = $conn->prepare("SELECT contract_id, tenant_id, amount, payment_for_month, payment_method, receipt_number FROM payments WHERE id=? LIMIT 1");
+    $paymentStmt->bind_param("i", $id);
+    $paymentStmt->execute();
+    $payment = $paymentStmt->get_result()->fetch_assoc();
+
     $del = $conn->prepare("DELETE FROM payments WHERE id=?");
     $del->bind_param("i", $id);
     $del->execute();
 
-    $_SESSION['flash'] = "Payment deleted.";
+    if ($del->affected_rows > 0) {
+        auditLog('deleted', 'payment', $id, $payment ?? []);
+        $_SESSION['flash'] = "Payment deleted.";
+    } else {
+        $_SESSION['flash'] = "Payment not found.";
+    }
     header("Location: payments.php");
     exit();
 }

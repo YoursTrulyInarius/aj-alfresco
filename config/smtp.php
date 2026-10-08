@@ -4,9 +4,19 @@
 //  Using Gmail SMTP + PHPMailer
 // =============================================
 
-define('SMTP_HOST',     getenv('SMTP_HOST') ?: 'smtp.gmail.com');
-define('SMTP_PORT',     (int)(getenv('SMTP_PORT') ?: 587));
-define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'YOUR_SMTP_USERNAME');
-define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: 'YOUR_SMTP_PASSWORD');
-define('SMTP_FROM',     getenv('SMTP_FROM') ?: 'YOUR_SMTP_FROM');
-define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'A&J Alfresco');
+$localSmtpConfig = __DIR__ . '/smtp.local.php';
+if (is_file($localSmtpConfig)) {
+	require_once $localSmtpConfig;
+}
+
+$smtpSetting = static function ($name, $localValue, $default = '') {
+	$environmentValue = getenv($name);
+	return $environmentValue === false ? ($localValue ?? $default) : $environmentValue;
+};
+
+define('SMTP_HOST',     $smtpSetting('SMTP_HOST', $smtpHost ?? null, 'smtp.gmail.com'));
+define('SMTP_PORT',     (int)$smtpSetting('SMTP_PORT', $smtpPort ?? null, '587'));
+define('SMTP_USERNAME', $smtpSetting('SMTP_USERNAME', $smtpUsername ?? null));
+define('SMTP_PASSWORD', $smtpSetting('SMTP_PASSWORD', $smtpPassword ?? null));
+define('SMTP_FROM',     $smtpSetting('SMTP_FROM', $smtpFrom ?? null));
+define('SMTP_FROM_NAME', $smtpSetting('SMTP_FROM_NAME', $smtpFromName ?? null, 'A&J Alfresco'));

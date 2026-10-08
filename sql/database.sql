@@ -37,7 +37,7 @@ CREATE TABLE contracts (
   deposit_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   terms TEXT,
   duration_type VARCHAR(50) NOT NULL DEFAULT '1 year',
-  status ENUM('active','expired','pending_renewal','terminated') NOT NULL DEFAULT 'active',
+  status ENUM('active','expired','pending_renewal','for_renewal','terminated') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_contracts_tenant FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_contracts_stall FOREIGN KEY (stall_id) REFERENCES stalls(id) ON DELETE CASCADE
@@ -51,7 +51,7 @@ CREATE TABLE payments (
   amount DECIMAL(10,2) NOT NULL,
   payment_date DATE NOT NULL,
   payment_for_month VARCHAR(20) NOT NULL,
-  payment_method ENUM('cash','gcash','bank_transfer','other') NOT NULL DEFAULT 'cash',
+  payment_method VARCHAR(50) NOT NULL DEFAULT 'cash',
   reference_number VARCHAR(100),
   receipt_number VARCHAR(50) NOT NULL UNIQUE,
   operator VARCHAR(150),
@@ -77,6 +77,36 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_user_read ON notifications (user_id, is_read, id);
 CREATE INDEX idx_notifications_user_type ON notifications (user_id, type, id);
 
+CREATE TABLE audit_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  actor_user_id INT NULL,
+  actor_name VARCHAR(150) NOT NULL,
+  actor_role VARCHAR(30) NOT NULL,
+  action VARCHAR(50) NOT NULL,
+  entity_type VARCHAR(50) NOT NULL,
+  entity_id INT NULL,
+  details JSON NOT NULL,
+  ip_address VARCHAR(45),
+  user_agent VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_logs_created_at (created_at, id),
+  INDEX idx_audit_logs_entity (entity_type, entity_id, id)
+) ENGINE=InnoDB;
+
+CREATE TABLE password_resets (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  failed_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  verified_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_resets_user_created (user_id, created_at),
+  INDEX idx_password_resets_expiry (expires_at),
+  CONSTRAINT fk_password_resets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Default Admin Account
 -- Email: admin@ajalfresco.com
 -- Password: admin123
@@ -84,4 +114,3 @@ INSERT INTO users(full_name,email,phone,password,role,status) VALUES
 ('A&J Alfresco Admin','admin@ajalfresco.com','09171234567',
 '$2y$10$XphWBZgND/N2tGi6ItH26.4CqKsvcWBcrYBgMbNoUCSDxDly2lWSG',
 'admin','active');
-

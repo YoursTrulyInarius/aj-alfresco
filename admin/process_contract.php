@@ -38,6 +38,15 @@ if ($action === 'create') {
 
     if ($stmt->execute()) {
         $new_id = $conn->insert_id;
+        auditLog('created', 'contract', $new_id, [
+            'tenant_id' => $tenant_id,
+            'stall_id' => $stall_id,
+            'monthly_rent' => $monthly_rent,
+            'deposit_amount' => $deposit_amount,
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+            'status' => 'active'
+        ]);
         $_SESSION['new_contract_id'] = $new_id;
         // Mark stall occupied
         $up = $conn->prepare("UPDATE stalls SET status='occupied' WHERE id=?");
@@ -64,13 +73,13 @@ if ($action === 'update') {
     $terms = sanitize($_POST['terms'] ?? '');
     $new_status = $_POST['status'] ?? '';
 
-    if ($id <= 0 || $tenant_id <= 0 || $stall_id <= 0 || !$start_date || !$end_date || $end_date < $start_date || !in_array($new_status, ['active', 'pending_renewal', 'expired', 'terminated'], true)) {
+    if ($id <= 0 || $tenant_id <= 0 || $stall_id <= 0 || !$start_date || !$end_date || $end_date < $start_date || !in_array($new_status, ['active', 'pending_renewal', 'for_renewal', 'expired', 'terminated'], true)) {
         $_SESSION['flash'] = "Please provide valid contract details.";
         header("Location: contracts.php");
         exit();
     }
 
-    $contractStmt = $conn->prepare("SELECT stall_id, status FROM contracts WHERE id=? LIMIT 1");
+    $contractStmt = $conn->prepare("SELECT * FROM contracts WHERE id=? LIMIT 1");
     $contractStmt->bind_param("i", $id);
     $contractStmt->execute();
     $contract = $contractStmt->get_result()->fetch_assoc();
@@ -93,11 +102,11 @@ if ($action === 'update') {
 
     $monthly_rent = (float)$stall['monthly_rate'];
     $old_stall_id = (int)$contract['stall_id'];
-    $activeStatuses = ['active', 'pending_renewal'];
+    $activeStatuses = ['active', 'pending_renewal', 'for_renewal'];
     $needsOccupiedStall = in_array($new_status, $activeStatuses, true);
     $hasOtherActiveContract = false;
     if ($needsOccupiedStall) {
-        $conflict = $conn->prepare("SELECT id FROM contracts WHERE stall_id=? AND id<>? AND status IN ('active','pending_renewal') LIMIT 1");
+        $conflict = $conn->prepare("SELECT id FROM contracts WHERE stall_id=? AND id<>? AND status IN ('active','pending_renewal','for_renewal') LIMIT 1");
         $conflict->bind_param("ii", $stall_id, $id);
         $conflict->execute();
         $hasOtherActiveContract = $conflict->get_result()->num_rows > 0;
@@ -126,7 +135,23 @@ if ($action === 'update') {
     }
 
     if ($success) {
+        auditLog('updated', 'contract', $id, [
+            'before' => $contract,
+            'after' => [
+                'tenant_id' => $tenant_id,
+                'stall_id' => $stall_id,
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+                'monthly_rent' => $monthly_rent,
+                'deposit_amount' => $deposit_amount,
+                'duration_type' => $duration_type,
+                'status' => $new_status
+            ]
+        ]);
         $conn->commit();
+        if ($new_status === 'active') {
+            tenantAutoReminders($tenant_id);
+        }
         $_SESSION['flash'] = "Contract updated successfully.";
     } else {
         $conn->rollback();
@@ -141,7 +166,7 @@ if ($action === 'terminate') {
     $id = (int)($_POST['id'] ?? 0);
 
     // Look up the stall_id associated with this contract
-    $stmt_find = $conn->prepare("SELECT stall_id FROM contracts WHERE id = ? LIMIT 1");
+    $stmt_find = $conn->prepare("SELECT stall_id, status FROM contracts WHERE id = ? LIMIT 1");
     $stmt_find->bind_param("i", $id);
     $stmt_find->execute();
     $contract_info = $stmt_find->get_result()->fetch_assoc();
@@ -149,15 +174,26 @@ if ($action === 'terminate') {
     if ($contract_info) {
         $stall_id = (int)$contract_info['stall_id'];
 
+        $conn->begin_transaction();
         $stmt = $conn->prepare("UPDATE contracts SET status='terminated' WHERE id=?");
         $stmt->bind_param("i", $id);
-        $stmt->execute();
+        $success = $stmt->execute();
 
         $up = $conn->prepare("UPDATE stalls SET status='available' WHERE id=?");
         $up->bind_param("i", $stall_id);
-        $up->execute();
+        $success = $success && $up->execute();
 
-        $_SESSION['flash'] = "Contract terminated. Stall set to available.";
+        if ($success) {
+            auditLog('terminated', 'contract', $id, [
+                'stall_id' => $stall_id,
+                'previous_status' => $contract_info['status']
+            ]);
+            $conn->commit();
+            $_SESSION['flash'] = "Contract terminated. Stall set to available.";
+        } else {
+            $conn->rollback();
+            $_SESSION['flash'] = "Unable to terminate the contract.";
+        }
     } else {
         $_SESSION['flash'] = "Error: Contract not found.";
     }

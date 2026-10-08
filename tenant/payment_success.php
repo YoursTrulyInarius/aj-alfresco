@@ -66,6 +66,15 @@ if ($status === 'succeeded') {
         $ins->bind_param("iidsssssss", $contract['id'], $tenantId, $amount, $date, $month, $method, $sessionId, $receipt, $operator, $notes);
         
         if ($ins->execute()) {
+            auditLog('created', 'payment', $ins->insert_id, [
+                'contract_id' => (int)$contract['id'],
+                'amount' => $amount,
+                'payment_for_month' => $month,
+                'payment_method' => $method,
+                'receipt_number' => $receipt,
+                'reference_number' => $sessionId
+            ]);
+
             // Notify Admin
             $adminRes = $conn->query("SELECT id FROM users WHERE role='admin'");
             while ($adm = $adminRes->fetch_assoc()) {

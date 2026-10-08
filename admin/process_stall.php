@@ -22,7 +22,14 @@ if ($action === 'create') {
 
     $stmt = $conn->prepare("INSERT INTO stalls(stall_number, stall_name, location_description, monthly_rate, status) VALUES(?,?,?,?,?)");
     $stmt->bind_param("sssds", $stall_number, $stall_name, $location_description, $monthly_rate, $status);
-    $stmt->execute();
+    if ($stmt->execute()) {
+        auditLog('created', 'stall', $stmt->insert_id, [
+            'stall_number' => $stall_number,
+            'stall_name' => $stall_name,
+            'monthly_rate' => $monthly_rate,
+            'status' => $status
+        ]);
+    }
 
     $_SESSION['flash'] = "Stall created successfully.";
     header("Location: stalls.php");
@@ -46,9 +53,24 @@ if ($action === 'update') {
         exit();
     }
 
+    $oldStmt = $conn->prepare("SELECT stall_number, stall_name, monthly_rate, status FROM stalls WHERE id=? LIMIT 1");
+    $oldStmt->bind_param("i", $id);
+    $oldStmt->execute();
+    $oldStall = $oldStmt->get_result()->fetch_assoc();
+
     $stmt = $conn->prepare("UPDATE stalls SET stall_number=?, stall_name=?, location_description=?, monthly_rate=?, status=? WHERE id=?");
     $stmt->bind_param("sssdsi", $stall_number, $stall_name, $location_description, $monthly_rate, $status, $id);
-    $stmt->execute();
+    if ($stmt->execute() && $stmt->affected_rows > 0) {
+        auditLog('updated', 'stall', $id, [
+            'before' => $oldStall,
+            'after' => [
+                'stall_number' => $stall_number,
+                'stall_name' => $stall_name,
+                'monthly_rate' => $monthly_rate,
+                'status' => $status
+            ]
+        ]);
+    }
 
     $_SESSION['flash'] = "Stall updated successfully.";
     header("Location: stalls.php");
@@ -67,11 +89,21 @@ if ($action === 'delete') {
         exit();
     }
 
+    $stallStmt = $conn->prepare("SELECT stall_number, stall_name, monthly_rate, status FROM stalls WHERE id=? LIMIT 1");
+    $stallStmt->bind_param("i", $id);
+    $stallStmt->execute();
+    $stall = $stallStmt->get_result()->fetch_assoc();
+
     $stmt = $conn->prepare("DELETE FROM stalls WHERE id=?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
 
-    $_SESSION['flash'] = "Stall deleted successfully.";
+    if ($stmt->affected_rows > 0) {
+        auditLog('deleted', 'stall', $id, $stall ?? []);
+        $_SESSION['flash'] = "Stall deleted successfully.";
+    } else {
+        $_SESSION['flash'] = "Stall not found.";
+    }
     header("Location: stalls.php");
     exit();
 }

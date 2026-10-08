@@ -38,6 +38,16 @@ $ins = $conn->prepare("
 $ins->bind_param("iidsssssss", $contract['id'], $tenantId, $amount, $date, $month, $method, $fakeSession, $receipt, $operator, $notes);
 
 if ($ins->execute()) {
+    auditLog('created', 'payment', $ins->insert_id, [
+        'contract_id' => (int)$contract['id'],
+        'amount' => $amount,
+        'payment_for_month' => $month,
+        'payment_method' => $method,
+        'receipt_number' => $receipt,
+        'reference_number' => $fakeSession,
+        'demo' => true
+    ]);
+
     // Notify Admin
     $adminRes = $conn->query("SELECT id FROM users WHERE role='admin' LIMIT 1");
     if($adm = $adminRes->fetch_assoc()){

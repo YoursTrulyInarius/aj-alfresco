@@ -78,6 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <button class="btn btn-primary" type="submit" style="width:100%; padding:12px; margin-top:10px;">Login Now</button>
     </form>
+
+    <div style="text-align:right; margin-top:14px;">
+      <a href="forgot_password.php" style="color:#d63384; font-size:13px; font-weight:600;">Forgot password?</a>
+    </div>
     
     <div class="login-footer">
         &copy; <?php echo date('Y'); ?> A&J Alfresco

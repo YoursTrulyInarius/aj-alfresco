@@ -10,13 +10,14 @@ $search = sanitize($_GET['search'] ?? '');
 $editTenant = null;
 
 if ($editId > 0) {
-    $stmt = $conn->prepare("SELECT u.* FROM users u WHERE u.id=? AND u.role='tenant'");
+    $stmt = $conn->prepare("SELECT u.id, u.full_name, u.email, u.phone, u.secondary_phone, u.business_name, u.business_type, u.address, u.status FROM users u WHERE u.id=? AND u.role='tenant'");
     $stmt->bind_param("i", $editId);
     $stmt->execute();
     $editTenant = $stmt->get_result()->fetch_assoc();
 }
 
-$query = "SELECT u.*, (SELECT stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as stall_no,
+$query = "SELECT u.id, u.full_name, u.email, u.phone, u.secondary_phone, u.business_name, u.business_type, u.address, u.status,
+          (SELECT stall_number FROM stalls s JOIN contracts c ON s.id = c.stall_id WHERE c.tenant_id = u.id AND c.status='active' LIMIT 1) as stall_no,
           EXISTS (
             SELECT 1
             FROM contracts overdue_contract
@@ -171,7 +172,6 @@ $unread = notifUnreadCount($adminId);
         <div class="card-header">
           <h2>Registered Tenants</h2>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <a class="btn btn-primary btn-sm" href="print_overdues.php" target="_blank" rel="noopener" style="width:auto;">Print Overdue List</a>
             <form method="GET" style="display:flex; gap:10px;">
               <input type="text" name="search" placeholder="Search name or business..." value="<?php echo htmlspecialchars($search); ?>" style="padding: 8px 15px; border:1px solid #eee; border-radius:10px; width:250px;">
               <button type="submit" class="btn btn-primary btn-sm" style="width:auto;">Search</button>
@@ -288,24 +288,26 @@ $unread = notifUnreadCount($adminId);
                   <input type="hidden" name="status" id="statusInputVal" value="<?php echo htmlspecialchars($editTenant['status'] ?? 'active'); ?>">
                 </div>
 
-                <!-- SECTION 3: Address & Security -->
-                <div class="form-section-title">Address & Credentials</div>
-                <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px;">
+                <!-- SECTION 3: Address & Credentials -->
+                <div class="form-section-title" id="addressCredentialsTitle"><?php echo $editTenant ? 'Address' : 'Address & Credentials'; ?></div>
+                <div id="addressCredentialsGrid" style="display:grid; grid-template-columns: <?php echo $editTenant ? '1fr' : '2fr 1fr'; ?>; gap: 16px; margin-bottom: 24px;">
                   <div class="form-group">
                     <label>Address *</label>
                     <textarea name="address" required rows="2" placeholder="Full Address" style="width: 100%; padding: 11px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: #fafbfc; font-size: 14px; outline: none; transition: border-color .2s ease, box-shadow .2s ease; font-family: 'Inter'; color: var(--text); resize: none;"><?php echo htmlspecialchars($editTenant['address'] ?? ''); ?></textarea>
                   </div>
 
-                  <div class="form-group">
-                    <label><?php echo $editTenant ? 'New Password (optional)' : 'Password *'; ?></label>
-                    <div class="password-wrap">
-                      <input id="passwordInput" type="password" name="password" <?php echo $editTenant ? '' : 'required'; ?> 
-                             pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" 
-                             title="Must contain at least one number, one uppercase, one lowercase letter, one special character, and 8+ characters"
-                             placeholder="Enter strong password">
-                      <button class="pw-toggle" type="button" onclick="togglePassword()">Show</button>
+                  <?php if (!$editTenant): ?>
+                    <div class="form-group" id="tenantPasswordField">
+                      <label>Password *</label>
+                      <div class="password-wrap">
+                        <input id="passwordInput" type="password" name="password" <?php echo $editTenant ? '' : 'required'; ?>
+                               pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}"
+                               title="Must contain at least one number, one uppercase, one lowercase letter, one special character, and 8+ characters"
+                               placeholder="Enter strong password">
+                        <button class="pw-toggle" type="button" onclick="togglePassword()">Show</button>
+                      </div>
                     </div>
-                  </div>
+                  <?php endif; ?>
                 </div>
 
                 <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
@@ -347,6 +349,15 @@ function toggleForm() {
         form.querySelector('input[name="action"]').value = 'create';
         form.querySelector('input[name="id"]').value = '0';
         form.querySelector('button[type="submit"]').textContent = 'Register Tenant Account';
+
+        const passwordField = document.getElementById('tenantPasswordField');
+        if (passwordField) passwordField.style.display = '';
+        const passwordInput = document.getElementById('passwordInput');
+        if (passwordInput) passwordInput.required = true;
+        const credentialsTitle = document.getElementById('addressCredentialsTitle');
+        if (credentialsTitle) credentialsTitle.textContent = 'Address & Credentials';
+        const credentialsGrid = document.getElementById('addressCredentialsGrid');
+        if (credentialsGrid) credentialsGrid.style.gridTemplateColumns = '2fr 1fr';
         
         const heading = document.querySelector('.modal-header h2');
         if (heading) heading.textContent = 'Register New Tenant';
@@ -403,6 +414,18 @@ function editTenantInPlace(t) {
   const form = document.querySelector('#tenantFormContainer form');
   form.querySelector('input[name="action"]').value = 'update';
   form.querySelector('input[name="id"]').value = t.id;
+
+  const passwordField = document.getElementById('tenantPasswordField');
+  if (passwordField) passwordField.style.display = 'none';
+  const passwordInput = document.getElementById('passwordInput');
+  if (passwordInput) {
+    passwordInput.required = false;
+    passwordInput.value = '';
+  }
+  const credentialsTitle = document.getElementById('addressCredentialsTitle');
+  if (credentialsTitle) credentialsTitle.textContent = 'Address';
+  const credentialsGrid = document.getElementById('addressCredentialsGrid');
+  if (credentialsGrid) credentialsGrid.style.gridTemplateColumns = '1fr';
   
   form.querySelector('input[name="full_name"]').value = t.full_name;
   form.querySelector('input[name="email"]').value = t.email;

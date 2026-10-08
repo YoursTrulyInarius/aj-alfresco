@@ -13,6 +13,7 @@ $activeContracts = $activeContractsRes ? (int)$activeContractsRes->fetch_assoc()
 
 $adminId = (int)$_SESSION['user_id'];
 $unread = notifUnreadCount($adminId);
+runAutomaticReminders();
 $flash = $_SESSION['flash'] ?? '';
 unset($_SESSION['flash']);
 
@@ -37,8 +38,8 @@ if ($overdueResult) {
   }
 }
 
-$terminationRequests = [];
-$requestResult = $conn->query("SELECT id, message, created_at FROM notifications WHERE user_id=$adminId AND title='Termination Request' AND is_read=0 ORDER BY id DESC");
+$contractRequests = [];
+$requestResult = $conn->query("SELECT id, title, message, created_at FROM notifications WHERE user_id=$adminId AND title IN ('Termination Request','Renewal Request') AND is_read=0 ORDER BY id DESC");
 if ($requestResult) {
   $pendingNotifications = $requestResult->fetch_all(MYSQLI_ASSOC);
   $requestResult->free();
@@ -52,8 +53,9 @@ if ($requestResult) {
     $contract = $contractStmt->get_result()->fetch_assoc();
 
     if ($contract) {
-      $terminationRequests[] = [
+      $contractRequests[] = [
         'notification_id' => (int)$request['id'],
+        'request_type' => $request['title'] === 'Renewal Request' ? 'renewal' : 'termination',
         'contract_id' => $contractId,
         'created_at' => $request['created_at'],
         'contract' => $contract
@@ -88,7 +90,6 @@ if ($requestResult) {
         <li><a href="payments.php">Payments</a></li>
         <li><a href="notifications.php">Notifications <?php if($unread>0): ?><span class="badge"><?php echo $unread; ?></span><?php endif; ?></a></li>
         <li><a href="reports.php">Reports</a></li>
-         <li><a href="test_reminders.php">Test Email Reminders</a></li>
       </ul>
       <div class="sidebar-footer">
         <a href="logout.php">Logout</a>
@@ -145,9 +146,12 @@ if ($requestResult) {
               <h2>Tenants Past Due Date</h2>
               <p style="color:var(--muted); font-size:13px; margin-top:4px;">Active contracts with no paid record for the current rental month.</p>
             </div>
-            <?php if ($overdueTenants): ?>
-              <span class="status-badge overdue"><?php echo count($overdueTenants); ?> overdue</span>
-            <?php endif; ?>
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <?php if ($overdueTenants): ?>
+                <span class="status-badge overdue"><?php echo count($overdueTenants); ?> overdue</span>
+              <?php endif; ?>
+              <a class="btn btn-primary btn-sm" href="print_overdues.php" target="_blank" rel="noopener" style="width:auto;">Print Overdue List</a>
+            </div>
           </div>
           <div class="card-body table-responsive">
             <?php if (!$overdueTenants): ?>
@@ -184,33 +188,40 @@ if ($requestResult) {
         <div class="card" style="margin-top:24px;">
           <div class="card-header">
             <div>
-              <h2>Termination Requests</h2>
-              <p style="color:var(--muted); font-size:13px; margin-top:4px;">Review tenant requests before changing contract status.</p>
+              <h2>Contract Requests</h2>
+              <p style="color:var(--muted); font-size:13px; margin-top:4px;">Review renewal and termination requests before changing contract status.</p>
             </div>
-            <?php if (count($terminationRequests) > 0): ?>
-              <span class="status-badge pending"><?php echo count($terminationRequests); ?> pending</span>
+            <?php if (count($contractRequests) > 0): ?>
+              <span class="status-badge pending"><?php echo count($contractRequests); ?> pending</span>
             <?php endif; ?>
           </div>
           <div class="card-body">
-            <?php if (!$terminationRequests): ?>
-              <p style="color:var(--muted); margin:0;">No termination requests require review.</p>
+            <?php if (!$contractRequests): ?>
+              <p style="color:var(--muted); margin:0;">No renewal or termination requests require review.</p>
             <?php else: ?>
               <div style="display:grid; gap:14px;">
-                <?php foreach ($terminationRequests as $request): $requestContract = $request['contract']; ?>
+                <?php foreach ($contractRequests as $request): $requestContract = $request['contract']; $isRenewal = $request['request_type'] === 'renewal'; ?>
                   <div style="border:1px solid var(--border); border-radius:10px; padding:16px; display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap;">
                     <div>
-                      <strong style="color:var(--secondary); display:block; margin-bottom:5px;"><?php echo htmlspecialchars($requestContract['full_name']); ?><?php if (!empty($requestContract['business_name'])): ?> <span style="color:var(--muted); font-weight:500;">(<?php echo htmlspecialchars($requestContract['business_name']); ?>)</span><?php endif; ?></strong>
+                      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+                        <strong style="color:var(--secondary);"><?php echo htmlspecialchars($requestContract['full_name']); ?><?php if (!empty($requestContract['business_name'])): ?> <span style="color:var(--muted); font-weight:500;">(<?php echo htmlspecialchars($requestContract['business_name']); ?>)</span><?php endif; ?></strong>
+                        <span class="status-badge <?php echo $isRenewal ? 'pending_renewal' : 'overdue'; ?>" style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">
+                          <?php echo $isRenewal ? 'Renewal' : 'Termination'; ?>
+                        </span>
+                      </div>
                       <span style="color:var(--muted); font-size:13px;">Contract #<?php echo $request['contract_id']; ?> | Stall <?php echo htmlspecialchars($requestContract['stall_number']); ?> | <?php echo formatDate($requestContract['start_date']); ?> to <?php echo formatDate($requestContract['end_date']); ?></span>
                       <small style="color:var(--muted); display:block; margin-top:5px;">Requested <?php echo formatDate($request['created_at']); ?></small>
                     </div>
                     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                      <form method="POST" action="process_notifications.php" style="margin:0;" onsubmit="return confirm('Approve this termination request? The stall will become available.');">
-                        <input type="hidden" name="action" value="approve_termination">
+                      <form method="POST" action="process_notifications.php" style="margin:0;" data-request-type="<?php echo $isRenewal ? 'renewal' : 'termination'; ?>" onsubmit="return confirmContractRequestAction(event, this);">
+                        <input type="hidden" name="action" value="<?php echo $isRenewal ? 'approve_renewal' : 'approve_termination'; ?>">
+                        <input type="hidden" name="scroll_y" value="0">
                         <input type="hidden" name="notification_id" value="<?php echo $request['notification_id']; ?>">
                         <button class="btn btn-success btn-sm" type="submit" style="width:auto;">Approve</button>
                       </form>
-                      <form method="POST" action="process_notifications.php" style="margin:0;" onsubmit="return confirm('Reject this termination request?');">
-                        <input type="hidden" name="action" value="reject_termination">
+                      <form method="POST" action="process_notifications.php" style="margin:0;" data-request-type="<?php echo $isRenewal ? 'renewal' : 'termination'; ?>" onsubmit="return confirmContractRequestAction(event, this);">
+                        <input type="hidden" name="action" value="<?php echo $isRenewal ? 'reject_renewal' : 'reject_termination'; ?>">
+                        <input type="hidden" name="scroll_y" value="0">
                         <input type="hidden" name="notification_id" value="<?php echo $request['notification_id']; ?>">
                         <button class="btn btn-danger btn-sm" type="submit" style="width:auto;">Reject</button>
                       </form>
@@ -226,11 +237,50 @@ if ($requestResult) {
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script>
     function toggleSidebar() {
       document.querySelector('.sidebar').classList.toggle('show');
       document.getElementById('sidebarOverlay').classList.toggle('show');
     }
+
+    function confirmContractRequestAction(e, form) {
+      e.preventDefault();
+      const action = form.querySelector('input[name="action"]').value;
+      const requestType = form.dataset.requestType || 'termination';
+      const isApprove = action.startsWith('approve_');
+      const actionText = isApprove ? 'approve' : 'reject';
+      const requestLabel = requestType === 'renewal' ? 'renewal request' : 'termination request';
+      Swal.fire({
+        title: 'Are you sure?',
+        text: isApprove
+          ? (requestType === 'renewal'
+            ? 'Approve this renewal request? The contract will be restored to active status.'
+            : 'Approve this termination request? The stall will become available.')
+          : (requestType === 'renewal'
+            ? 'Reject this renewal request?'
+            : 'Reject this termination request?'),
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#22c55e',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, ' + actionText + ' ' + requestLabel
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.querySelector('input[name="scroll_y"]').value = window.scrollY;
+          form.submit();
+        }
+      });
+      return false;
+    }
+
+    window.addEventListener('load', function() {
+      const savedScroll = <?php echo isset($_SESSION['scroll_y']) ? (int)$_SESSION['scroll_y'] : 0; ?>;
+      if (savedScroll > 0) {
+        window.scrollTo({ top: savedScroll, left: 0, behavior: 'auto' });
+      }
+      <?php unset($_SESSION['scroll_y']); ?>
+    });
   </script>
 </body>
 </html>

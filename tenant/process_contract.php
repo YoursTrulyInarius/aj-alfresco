@@ -41,7 +41,12 @@ if ($action === 'request_renewal') {
 
     $up = $conn->prepare("UPDATE contracts SET status='pending_renewal' WHERE id=? AND tenant_id=?");
     $up->bind_param("ii", $id, $tenantId);
-    $up->execute();
+    if ($up->execute() && $up->affected_rows > 0) {
+        auditLog('renewal_requested', 'contract', $id, [
+            'previous_status' => 'active',
+            'requested_status' => 'pending_renewal'
+        ]);
+    }
 
     notifyActiveAdmin(
         "Renewal Request",
@@ -85,6 +90,9 @@ if ($action === 'terminate') {
                 "Tenant " . $_SESSION['full_name'] . " requested termination for Contract ID: $id.",
                 "general"
             );
+            auditLog('termination_requested', 'contract', $id, [
+                'status' => $contract['status']
+            ]);
             $_SESSION['flash'] = "Termination request sent to admin for approval.";
         }
     }

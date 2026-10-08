@@ -32,6 +32,11 @@ if ($action === 'create') {
     
     if ($stmt->execute()) {
         $newTenantId = $stmt->insert_id;
+        auditLog('created', 'tenant', $newTenantId, [
+            'full_name' => $full_name,
+            'email' => $email,
+            'status' => $status
+        ]);
         $_SESSION['flash'] = "Tenant account created successfully. Assign a stall through Contracts.";
     } else {
         $_SESSION['flash'] = "Error creating account: " . $conn->error;
@@ -64,6 +69,11 @@ if ($action === 'update') {
         exit();
     }
 
+    $oldTenantStmt = $conn->prepare("SELECT full_name, email, status FROM users WHERE id=? AND role='tenant' LIMIT 1");
+    $oldTenantStmt->bind_param("i", $id);
+    $oldTenantStmt->execute();
+    $oldTenant = $oldTenantStmt->get_result()->fetch_assoc();
+
     if ($password) {
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $conn->prepare("UPDATE users SET full_name=?, email=?, phone=?, secondary_phone=?, business_name=?, business_type=?, address=?, status=?, password=? WHERE id=? AND role='tenant'");
@@ -74,6 +84,17 @@ if ($action === 'update') {
     }
     
     if ($stmt->execute()) {
+        if ($stmt->affected_rows > 0) {
+            auditLog('updated', 'tenant', $id, [
+                'before' => $oldTenant,
+                'after' => [
+                    'full_name' => $full_name,
+                    'email' => $email,
+                    'status' => $status,
+                    'password_changed' => (bool)$password
+                ]
+            ]);
+        }
         $_SESSION['flash'] = "Tenant updated successfully.";
     } else {
         $_SESSION['flash'] = "Error updating tenant: " . $conn->error;
@@ -85,11 +106,21 @@ if ($action === 'update') {
 if ($action === 'delete') {
     $id = (int)($_POST['id'] ?? 0);
 
+    $tenantStmt = $conn->prepare("SELECT full_name, email, status FROM users WHERE id=? AND role='tenant' LIMIT 1");
+    $tenantStmt->bind_param("i", $id);
+    $tenantStmt->execute();
+    $tenant = $tenantStmt->get_result()->fetch_assoc();
+
     $stmt = $conn->prepare("DELETE FROM users WHERE id=? AND role='tenant'");
     $stmt->bind_param("i", $id);
     $stmt->execute();
 
-    $_SESSION['flash'] = "Tenant deleted successfully.";
+    if ($stmt->affected_rows > 0) {
+        auditLog('deleted', 'tenant', $id, $tenant ?? []);
+        $_SESSION['flash'] = "Tenant deleted successfully.";
+    } else {
+        $_SESSION['flash'] = "Tenant not found.";
+    }
     header("Location: tenants.php");
     exit();
 }

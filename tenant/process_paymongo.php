@@ -5,6 +5,15 @@ requireTenant();
 
 header('Content-Type: application/json');
 
+if (PAYMONGO_SECRET_KEY === '') {
+    error_log('PayMongo secret key is not configured.');
+    echo json_encode([
+        'success' => false,
+        'message' => 'Online payments are not configured. Please contact the administrator.'
+    ]);
+    exit();
+}
+
 $tenantId = (int)$_SESSION['user_id'];
 $phone = sanitize($_POST['phone'] ?? '');
 
